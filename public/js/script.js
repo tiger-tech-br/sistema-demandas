@@ -1,6 +1,6 @@
 const form = document.getElementById("formDemanda");
 
-const API = window.location.origin;
+const API = "https://sistema-demandas-aw2w.onrender.com";
 
 let demandaEditando = null;
 
