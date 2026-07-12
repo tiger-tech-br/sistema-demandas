@@ -350,7 +350,7 @@ function limparFormulario(){
 
 function formatarData(data){
 
-    return new Date(data).toLocaleDateString("pt-BR");
+    return formatarData(demanda.data_vencimento);
 
 }
 

@@ -3,6 +3,9 @@ package com.demandas.app;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
+
+import androidx.core.content.ContextCompat;
 
 public class AlarmReceiver extends BroadcastReceiver {
 
@@ -11,7 +14,18 @@ public class AlarmReceiver extends BroadcastReceiver {
 
         Intent serviceIntent = new Intent(context, AlarmService.class);
 
-        context.startForegroundService(serviceIntent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+            ContextCompat.startForegroundService(
+                    context,
+                    serviceIntent
+            );
+
+        } else {
+
+            context.startService(serviceIntent);
+
+        }
 
     }
 

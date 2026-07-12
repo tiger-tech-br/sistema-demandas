@@ -2,9 +2,9 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ===========================
+    <!-- ======================================================
          PERMISSÕES
-    ============================ -->
+    ======================================================= -->
 
     <uses-permission android:name="android.permission.INTERNET"/>
 
@@ -14,44 +14,33 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 
-    <!-- ===========================
+    <!-- Android 14+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+
+    <!-- ======================================================
          APLICAÇÃO
-    ============================ -->
+    ======================================================= -->
 
     <application
-
         android:allowBackup="true"
-
         android:icon="@mipmap/ic_launcher"
-
         android:label="@string/app_name"
-
         android:roundIcon="@mipmap/ic_launcher_round"
-
         android:supportsRtl="true"
-
         android:usesCleartextTraffic="true"
-
         android:networkSecurityConfig="@xml/network_security_config"
-
         android:theme="@style/AppTheme">
 
-        <!-- ===========================
-             ACTIVITY PRINCIPAL
-        ============================ -->
+        <!-- ==================================================
+             MAIN ACTIVITY
+        =================================================== -->
 
         <activity
-
             android:name=".MainActivity"
-
             android:exported="true"
-
             android:launchMode="singleTask"
-
             android:label="@string/title_activity_main"
-
             android:theme="@style/AppTheme.NoActionBarLaunch"
-
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density">
 
             <intent-filter>
@@ -64,48 +53,52 @@
 
         </activity>
 
-        <!-- ===========================
+        <!-- ==================================================
              RECEIVER DO ALARME
-        ============================ -->
+        =================================================== -->
 
         <receiver
-
             android:name=".AlarmReceiver"
-
             android:exported="false"/>
 
-        <!-- ===========================
+        <!-- ==================================================
+             BOTÃO PARAR ALARME
+        =================================================== -->
+
+        <receiver
+            android:name=".StopAlarmReceiver"
+            android:exported="false"/>
+
+        <!-- ==================================================
+             BOTÃO ABRIR SISTEMA
+        =================================================== -->
+
+        <receiver
+            android:name=".OpenAppReceiver"
+            android:exported="false"/>
+
+        <!-- ==================================================
              FOREGROUND SERVICE
-        ============================ -->
+        =================================================== -->
 
         <service
-
             android:name=".AlarmService"
-
             android:enabled="true"
-
             android:exported="false"
-
             android:foregroundServiceType="mediaPlayback"/>
 
-        <!-- ===========================
+        <!-- ==================================================
              FILE PROVIDER
-        ============================ -->
+        =================================================== -->
 
         <provider
-
             android:name="androidx.core.content.FileProvider"
-
             android:authorities="${applicationId}.fileprovider"
-
             android:exported="false"
-
             android:grantUriPermissions="true">
 
             <meta-data
-
                 android:name="android.support.FILE_PROVIDER_PATHS"
-
                 android:resource="@xml/file_paths"/>
 
         </provider>

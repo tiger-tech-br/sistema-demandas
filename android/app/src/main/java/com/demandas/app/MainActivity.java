@@ -19,6 +19,14 @@ public class MainActivity extends BridgeActivity {
 
         super.onCreate(savedInstanceState);
 
+        solicitarPermissaoNotificacao();
+
+        AlarmScheduler.schedule(this);
+
+    }
+
+    private void solicitarPermissaoNotificacao() {
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 
             if (ContextCompat.checkSelfPermission(
@@ -37,8 +45,6 @@ public class MainActivity extends BridgeActivity {
             }
 
         }
-
-        AlarmScheduler.schedule(this);
 
     }
 

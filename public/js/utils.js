@@ -4,7 +4,11 @@
 
 function formatarData(data) {
 
-    return new Date(data).toLocaleDateString("pt-BR");
+    if (!data) return "";
+
+    const [ano, mes, dia] = data.split("-");
+
+    return `${dia}/${mes}/${ano}`;
 
 }
 
@@ -37,6 +41,16 @@ function ehAPK() {
 function ehNavegador() {
 
     return !ehAPK();
+
+}
+
+/* ===========================
+   INTERNET
+=========================== */
+
+function estaOnline() {
+
+    return navigator.onLine;
 
 }
 
@@ -89,5 +103,41 @@ function alertaAviso(titulo, html) {
         confirmButtonText: "Entendi"
 
     });
+
+}
+
+function alertaConfirmacao(titulo, mensagem) {
+
+    return Swal.fire({
+
+        title: titulo,
+
+        text: mensagem,
+
+        icon: "question",
+
+        showCancelButton: true,
+
+        confirmButtonText: "Sim",
+
+        cancelButtonText: "Cancelar"
+
+    });
+
+}
+
+/* ===========================
+   FORMULÁRIOS
+=========================== */
+
+function limparFormulario(formulario) {
+
+    formulario.reset();
+
+}
+
+function alterarTextoBotao(botao, texto) {
+
+    botao.textContent = texto;
 
 }

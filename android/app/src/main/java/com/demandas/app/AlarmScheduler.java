@@ -14,6 +14,10 @@ public class AlarmScheduler {
         AlarmManager alarmManager =
                 (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
 
+        if (alarmManager == null) {
+            return;
+        }
+
         Intent intent = new Intent(context, AlarmReceiver.class);
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
@@ -28,8 +32,9 @@ public class AlarmScheduler {
         calendar.set(Calendar.HOUR_OF_DAY, 17);
         calendar.set(Calendar.MINUTE, 25);
         calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
 
-        // Se já passou das 10h hoje, agenda para amanhã
+        // Se o horário já passou hoje, agenda para amanhã
         if (calendar.getTimeInMillis() <= System.currentTimeMillis()) {
             calendar.add(Calendar.DAY_OF_MONTH, 1);
         }
