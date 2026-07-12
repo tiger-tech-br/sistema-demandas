@@ -7,7 +7,11 @@ async function criarDemanda(numero_demanda, assunto, data_vencimento) {
         (numero_demanda, assunto, data_vencimento)
         VALUES
         ($1, $2, $3)
-        RETURNING *;
+        RETURNING
+            id,
+            numero_demanda,
+            assunto,
+            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento;
     `;
 
     const resultado = await db.query(sql, [
@@ -22,9 +26,13 @@ async function criarDemanda(numero_demanda, assunto, data_vencimento) {
 async function listarDemandas() {
 
     const sql = `
-        SELECT *
+        SELECT
+            id,
+            numero_demanda,
+            assunto,
+            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento
         FROM demandas
-        ORDER BY data_vencimento ASC;
+        ORDER BY data_vencimento;
     `;
 
     const resultado = await db.query(sql);
@@ -37,7 +45,11 @@ async function excluirDemanda(id) {
     const sql = `
         DELETE FROM demandas
         WHERE id = $1
-        RETURNING *;
+        RETURNING
+            id,
+            numero_demanda,
+            assunto,
+            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento;
     `;
 
     const resultado = await db.query(sql, [id]);
@@ -54,7 +66,11 @@ async function atualizarDemanda(id, numero_demanda, assunto, data_vencimento) {
             assunto = $2,
             data_vencimento = $3
         WHERE id = $4
-        RETURNING *;
+        RETURNING
+            id,
+            numero_demanda,
+            assunto,
+            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento;
     `;
 
     const resultado = await db.query(sql, [
@@ -70,7 +86,11 @@ async function atualizarDemanda(id, numero_demanda, assunto, data_vencimento) {
 async function buscarDemandasVencendoAmanha() {
 
     const sql = `
-        SELECT *
+        SELECT
+            id,
+            numero_demanda,
+            assunto,
+            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento
         FROM demandas
         WHERE data_vencimento = CURRENT_DATE + INTERVAL '1 day'
         ORDER BY data_vencimento;
@@ -80,8 +100,6 @@ async function buscarDemandasVencendoAmanha() {
 
     return resultado.rows;
 }
-
-
 
 module.exports = {
     criarDemanda,
