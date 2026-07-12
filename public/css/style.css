@@ -1,4 +1,6 @@
-/* ===== RESET ===== */
+/* ===========================
+   RESET
+=========================== */
 
 * {
     margin: 0;
@@ -6,136 +8,411 @@
     box-sizing: border-box;
 }
 
+:root {
+
+    --cor-primaria: #2563eb;
+    --cor-primaria-hover: #1d4ed8;
+    --cor-sucesso: #16a34a;
+    --cor-perigo: #dc2626;
+
+    --cor-fundo: #f4f6f9;
+    --cor-card: #ffffff;
+
+    --cor-texto: #1f2937;
+    --cor-borda: #d1d5db;
+
+    --sombra: 0 6px 18px rgba(0,0,0,.08);
+
+}
+
+html {
+
+    font-size: 16px;
+    scroll-behavior: smooth;
+
+}
+
 body {
+
     font-family: Arial, Helvetica, sans-serif;
-    background: #f4f6f9;
-    color: #333;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+    overflow-x: hidden;
+
 }
 
-/* ===== CONTAINER ===== */
+/* ===========================
+   CONTAINER
+=========================== */
 
-.container {
-    width: 90%;
-    max-width: 1100px;
-    margin: 40px auto;
+.container{
+
+    width:min(95%,1100px);
+
+    margin:25px auto;
+
 }
 
-/* ===== TÍTULOS ===== */
+/* ===========================
+   TÍTULOS
+=========================== */
 
-h1 {
-    text-align: center;
-    margin-bottom: 35px;
-    color: #1f2937;
+h1{
+
+    text-align:center;
+
+    font-size:2rem;
+
+    margin-bottom:10px;
+
 }
 
-h2 {
-    margin-bottom: 20px;
-    color: #374151;
+.subtitulo{
+
+    text-align:center;
+
+    color:#6b7280;
+
+    margin-bottom:35px;
+
 }
 
-/* ===== CARD ===== */
+h2{
+
+    margin-bottom:20px;
+
+}
+
+/* ===========================
+   CARDS
+=========================== */
 
 .cadastro,
-.lista {
-    background: #fff;
-    padding: 25px;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0,0,0,.08);
-    margin-bottom: 35px;
+.lista{
+
+    background:var(--cor-card);
+
+    border-radius:14px;
+
+    padding:25px;
+
+    box-shadow:var(--sombra);
+
+    margin-bottom:25px;
+
 }
 
-/* ===== FORM ===== */
+/* ===========================
+   FORMULÁRIO
+=========================== */
 
-form {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
+form{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:18px;
+
 }
 
-.campo {
-    display: flex;
-    flex-direction: column;
+.campo{
+
+    display:flex;
+
+    flex-direction:column;
+
 }
 
-label {
-    margin-bottom: 8px;
-    font-weight: bold;
+label{
+
+    font-weight:bold;
+
+    margin-bottom:8px;
+
 }
 
-input {
-    padding: 12px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-size: 16px;
+input{
+
+    width:100%;
+
+    padding:14px;
+
+    border:1px solid var(--cor-borda);
+
+    border-radius:10px;
+
+    font-size:16px;
+
+    transition:.3s;
+
 }
 
-input:focus {
-    outline: none;
-    border-color: #2563eb;
+input:focus{
+
+    outline:none;
+
+    border-color:var(--cor-primaria);
+
+    box-shadow:0 0 0 4px rgba(37,99,235,.15);
+
 }
 
-/* ===== BOTÃO ===== */
+/* ===========================
+   BOTÕES
+=========================== */
 
-button {
-    padding: 14px;
-    border: none;
-    border-radius: 6px;
-    background: #2563eb;
-    color: white;
-    font-size: 16px;
-    cursor: pointer;
-    transition: .3s;
+button{
+
+    border:none;
+
+    border-radius:10px;
+
+    padding:14px;
+
+    font-size:16px;
+
+    font-weight:bold;
+
+    cursor:pointer;
+
+    transition:.3s;
+
+    background:var(--cor-primaria);
+
+    color:white;
+
 }
 
-button:hover {
-    background: #1d4ed8;
+button:hover{
+
+    background:var(--cor-primaria-hover);
+
+    transform:translateY(-2px);
+
 }
 
-/* ===== TABELA ===== */
+button:active{
 
-table {
-    width: 100%;
-    border-collapse: collapse;
+    transform:scale(.98);
+
 }
 
-thead {
-    background: #2563eb;
-    color: white;
+/* ===========================
+   TABELA
+=========================== */
+
+.lista{
+
+    overflow-x:auto;
+
+}
+
+table{
+
+    width:100%;
+
+    border-collapse:collapse;
+
+}
+
+thead{
+
+    background:var(--cor-primaria);
+
+    color:white;
+
 }
 
 th,
-td {
-    padding: 14px;
-    text-align: center;
-    border-bottom: 1px solid #ddd;
+td{
+
+    padding:15px;
+
+    text-align:center;
+
+    border-bottom:1px solid #e5e7eb;
+
 }
 
-tbody tr:hover {
-    background: #f7f7f7;
+tbody tr:hover{
+
+    background:#f9fafb;
+
 }
 
-/* ===== RESPONSIVIDADE ===== */
+/* ===========================
+   BOTÕES DA TABELA
+=========================== */
 
-@media (max-width: 768px) {
+td:last-child{
 
-    .container {
-        width: 95%;
-        margin: 25px auto;
+    white-space:nowrap;
+
+}
+
+td button{
+
+    width:auto;
+
+    padding:10px 15px;
+
+    margin:3px;
+
+}
+
+td button:first-child{
+
+    background:var(--cor-sucesso);
+
+}
+
+td button:first-child:hover{
+
+    background:#15803d;
+
+}
+
+td button:last-child{
+
+    background:var(--cor-perigo);
+
+}
+
+td button:last-child:hover{
+
+    background:#b91c1c;
+
+}
+
+/* ===========================
+   RESPONSIVIDADE
+=========================== */
+
+@media(max-width:768px){
+
+    .container{
+
+        width:95%;
+
+        margin:15px auto;
+
+    }
+
+    h1{
+
+        font-size:1.6rem;
+
+    }
+
+    h2{
+
+        font-size:1.2rem;
+
     }
 
     .cadastro,
-    .lista {
-        padding: 18px;
+    .lista{
+
+        padding:18px;
+
     }
 
-    table {
-        display: block;
-        overflow-x: auto;
-        white-space: nowrap;
+    input{
+
+        font-size:16px;
+
     }
 
-    button {
-        width: 100%;
+    button{
+
+        width:100%;
+
+    }
+
+    thead{
+
+        display:none;
+
+    }
+
+    table,
+    tbody,
+    tr,
+    td{
+
+        display:block;
+
+        width:100%;
+
+    }
+
+    tbody tr{
+
+        background:white;
+
+        margin-bottom:18px;
+
+        border-radius:12px;
+
+        box-shadow:var(--sombra);
+
+        padding:15px;
+
+    }
+
+    td{
+
+        display:flex;
+
+        justify-content:space-between;
+
+        align-items:center;
+
+        border:none;
+
+        padding:10px 0;
+
+    }
+
+    td:nth-child(1)::before{
+
+        content:"Número";
+
+        font-weight:bold;
+
+    }
+
+    td:nth-child(2)::before{
+
+        content:"Assunto";
+
+        font-weight:bold;
+
+    }
+
+    td:nth-child(3)::before{
+
+        content:"Vencimento";
+
+        font-weight:bold;
+
+    }
+
+    td:nth-child(4){
+
+        display:block;
+
+        padding-top:15px;
+
+    }
+
+    td:nth-child(4) button{
+
+        width:100%;
+
+        margin-top:10px;
+
     }
 
 }

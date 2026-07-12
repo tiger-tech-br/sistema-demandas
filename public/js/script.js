@@ -1,64 +1,71 @@
-const form = document.getElementById("formDemanda");
-
 const API = "https://sistema-demandas-aw2w.onrender.com";
+
+const form = document.getElementById("formDemanda");
+const tabelaDemandas = document.getElementById("tabelaDemandas");
 
 let demandaEditando = null;
 
-form.addEventListener("submit", async (event) => {
+/* ===========================
+   CADASTRAR / ATUALIZAR
+=========================== */
+
+form.addEventListener("submit", salvarDemanda);
+
+async function salvarDemanda(event) {
 
     event.preventDefault();
 
-    const numero_demanda = document.getElementById("numero").value;
-    const assunto = document.getElementById("assunto").value;
+    const numero_demanda = document.getElementById("numero").value.trim();
+    const assunto = document.getElementById("assunto").value.trim();
     const data_vencimento = document.getElementById("vencimento").value;
 
     const url = demandaEditando
-        ? `/demandas/${demandaEditando}`
-        : "/demandas";
+        ? `${API}/demandas/${demandaEditando}`
+        : `${API}/demandas`;
 
-    const metodo = demandaEditando
-        ? "PUT"
-        : "POST";
+    const metodo = demandaEditando ? "PUT" : "POST";
 
     try {
 
-        const resposta = await fetch(`${API}${url}`, {
+        const resposta = await fetch(url, {
+
             method: metodo,
+
             headers: {
                 "Content-Type": "application/json"
             },
+
             body: JSON.stringify({
                 numero_demanda,
                 assunto,
                 data_vencimento
             })
+
         });
 
         const dados = await resposta.json();
 
         if (!resposta.ok) {
 
-            Swal.fire({
+            return Swal.fire({
+
                 icon: "error",
                 title: "Erro",
                 text: dados.mensagem
+
             });
 
-            return;
         }
 
         Swal.fire({
+
             icon: "success",
             title: "Sucesso!",
-            text: dados.mensagem,
-            confirmButtonText: "OK"
+            text: dados.mensagem
+
         });
 
-        form.reset();
-
-        demandaEditando = null;
-
-        form.querySelector("button").textContent = "Cadastrar Demanda";
+        limparFormulario();
 
         carregarDemandas();
 
@@ -67,14 +74,20 @@ form.addEventListener("submit", async (event) => {
         console.error(erro);
 
         Swal.fire({
+
             icon: "error",
             title: "Erro",
-            text: "Erro ao conectar com o servidor."
+            text: "Não foi possível conectar ao servidor."
+
         });
 
     }
 
-});
+}
+
+/* ===========================
+   LISTAR
+=========================== */
 
 async function carregarDemandas() {
 
@@ -83,120 +96,81 @@ async function carregarDemandas() {
         const resposta = await fetch(`${API}/demandas`);
 
         if (!resposta.ok) {
-            throw new Error("Erro ao buscar demandas.");
+
+            throw new Error();
+
         }
 
         const demandas = await resposta.json();
 
-        const tabela = document.getElementById("tabelaDemandas");
+        tabelaDemandas.innerHTML = "";
 
-        let html = "";
-
-        demandas.forEach((demanda) => {
-
-            html += `
-                <tr>
-                    <td>${demanda.numero_demanda}</td>
-                    <td>${demanda.assunto}</td>
-                    <td>${new Date(demanda.data_vencimento).toLocaleDateString("pt-BR")}</td>
-
-                    <td>
-
-                        <button
-                            onclick="editarDemanda(
-                                ${demanda.id},
-                                '${demanda.numero_demanda}',
-                                '${demanda.assunto}',
-                                '${demanda.data_vencimento}'
-                            )"
-                        >
-                            Editar
-                        </button>
-
-                        <button
-                            onclick="excluirDemanda(${demanda.id})"
-                        >
-                            Excluir
-                        </button>
-
-                    </td>
-                </tr>
-            `;
-
-        });
-
-        tabela.innerHTML = html;
+        demandas.forEach(criarLinhaTabela);
 
     } catch (erro) {
 
         console.error(erro);
 
         Swal.fire({
+
             icon: "error",
             title: "Erro",
             text: "Não foi possível carregar as demandas."
+
         });
 
     }
 
 }
 
-async function excluirDemanda(id) {
+function criarLinhaTabela(demanda) {
 
-    const resultado = await Swal.fire({
-        title: "Excluir demanda?",
-        text: "Esta ação não poderá ser desfeita.",
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonText: "Excluir",
-        cancelButtonText: "Cancelar",
-        confirmButtonColor: "#d33"
-    });
+    tabelaDemandas.innerHTML += `
 
-    if (!resultado.isConfirmed) {
-        return;
-    }
+        <tr>
 
-    try {
+            <td>${demanda.numero_demanda}</td>
 
-        const resposta = await fetch(`${API}/demandas/${id}`, {
-            method: "DELETE"
-        });
+            <td>${demanda.assunto}</td>
 
-        const dados = await resposta.json();
+            <td>${formatarData(demanda.data_vencimento)}</td>
 
-        if (!resposta.ok) {
+            <td>
 
-            Swal.fire({
-                icon: "error",
-                title: "Erro",
-                text: dados.mensagem
-            });
+                <button
+                    class="btn-editar"
+                    onclick="editarDemanda(
+                        ${demanda.id},
+                        '${demanda.numero_demanda}',
+                        '${demanda.assunto}',
+                        '${demanda.data_vencimento}'
+                    )"
+                >
 
-            return;
-        }
+                    ✏️ Editar
 
-        Swal.fire({
-            icon: "success",
-            title: "Sucesso!",
-            text: dados.mensagem
-        });
+                </button>
 
-        carregarDemandas();
+                <button
+                    class="btn-excluir"
+                    onclick="excluirDemanda(${demanda.id})"
+                >
 
-    } catch (erro) {
+                    🗑️ Excluir
 
-        console.error(erro);
+                </button>
 
-        Swal.fire({
-            icon: "error",
-            title: "Erro",
-            text: "Erro ao excluir demanda."
-        });
+            </td>
 
-    }
+        </tr>
+
+    `;
 
 }
+
+/* ===========================
+   EDITAR
+=========================== */
 
 function editarDemanda(id, numero, assunto, vencimento) {
 
@@ -204,17 +178,107 @@ function editarDemanda(id, numero, assunto, vencimento) {
 
     document.getElementById("numero").value = numero;
     document.getElementById("assunto").value = assunto;
-    document.getElementById("vencimento").value = vencimento.substring(0, 10);
+    document.getElementById("vencimento").value = vencimento.substring(0,10);
 
     form.querySelector("button").textContent = "Atualizar Demanda";
 
     window.scrollTo({
-        top: 0,
-        behavior: "smooth"
+
+        top:0,
+
+        behavior:"smooth"
+
     });
 
 }
 
+/* ===========================
+   EXCLUIR
+=========================== */
+
+async function excluirDemanda(id) {
+
+    const confirmar = await Swal.fire({
+
+        title:"Excluir demanda?",
+
+        text:"Essa ação não poderá ser desfeita.",
+
+        icon:"warning",
+
+        showCancelButton:true,
+
+        confirmButtonText:"Excluir",
+
+        cancelButtonText:"Cancelar",
+
+        confirmButtonColor:"#dc2626"
+
+    });
+
+    if(!confirmar.isConfirmed){
+
+        return;
+
+    }
+
+    try{
+
+        const resposta = await fetch(`${API}/demandas/${id}`,{
+
+            method:"DELETE"
+
+        });
+
+        const dados = await resposta.json();
+
+        if(!resposta.ok){
+
+            return Swal.fire({
+
+                icon:"error",
+
+                title:"Erro",
+
+                text:dados.mensagem
+
+            });
+
+        }
+
+        Swal.fire({
+
+            icon:"success",
+
+            title:"Sucesso",
+
+            text:dados.mensagem
+
+        });
+
+        carregarDemandas();
+
+    }catch(erro){
+
+        console.error(erro);
+
+        Swal.fire({
+
+            icon:"error",
+
+            title:"Erro",
+
+            text:"Erro ao excluir demanda."
+
+        });
+
+    }
+
+}
+
+/* ===========================
+   ALERTA (VERSÃO WEB)
+=========================== */
 
 async function verificarDemandasVencendoAmanha() {
 
@@ -222,19 +286,23 @@ async function verificarDemandasVencendoAmanha() {
 
         const resposta = await fetch(`${API}/demandas/vencendo-amanha`);
 
-        if (!resposta.ok) {
-            throw new Error("Erro ao verificar demandas.");
+        if(!resposta.ok){
+
+            return;
+
         }
 
         const demandas = await resposta.json();
 
-        if (demandas.length === 0) {
+        if(demandas.length===0){
+
             return;
+
         }
 
         let mensagem = "";
 
-        demandas.forEach((demanda) => {
+        demandas.forEach((demanda)=>{
 
             mensagem += `
                 <b>Nº:</b> ${demanda.numero_demanda}<br>
@@ -243,32 +311,22 @@ async function verificarDemandasVencendoAmanha() {
 
         });
 
-        const alarme = document.getElementById("alarme");
-
-        if (alarme) {
-
-            alarme.currentTime = 0;
-
-            try {
-
-                await alarme.play();
-
-            } catch (erro) {
-
-                console.log("O navegador bloqueou a reprodução automática do áudio.");
-
-            }
-
-        }
-
         Swal.fire({
-            icon: "warning",
-            title: "⚠️ Demandas vencendo amanhã",
-            html: mensagem,
-            confirmButtonText: "Entendi"
+
+            icon:"warning",
+
+            title:"⚠️ Atenção!",
+
+            html:`
+                Existem demandas vencendo amanhã.<br><br>
+                ${mensagem}
+            `,
+
+            confirmButtonText:"Ver Demandas"
+
         });
 
-    } catch (erro) {
+    }catch(erro){
 
         console.error(erro);
 
@@ -276,25 +334,54 @@ async function verificarDemandasVencendoAmanha() {
 
 }
 
-carregarDemandas();
-verificarDemandasVencendoAmanha();
+/* ===========================
+   UTILIDADES
+=========================== */
 
-if ("serviceWorker" in navigator) {
+function limparFormulario(){
 
-    window.addEventListener("load", () => {
+    form.reset();
+
+    demandaEditando = null;
+
+    form.querySelector("button").textContent = "Cadastrar Demanda";
+
+}
+
+function formatarData(data){
+
+    return new Date(data).toLocaleDateString("pt-BR");
+
+}
+
+/* ===========================
+   INICIALIZAÇÃO
+=========================== */
+
+document.addEventListener("DOMContentLoaded",()=>{
+
+    carregarDemandas();
+
+    verificarDemandasVencendoAmanha();
+
+});
+
+/* ===========================
+   SERVICE WORKER
+=========================== */
+
+if("serviceWorker" in navigator){
+
+    window.addEventListener("load",()=>{
 
         navigator.serviceWorker
             .register("/service-worker.js")
-            .then(() => {
+            .then(()=>{
 
-                console.log("Service Worker registrado com sucesso.");
+                console.log("Service Worker registrado.");
 
             })
-            .catch((erro) => {
-
-                console.error("Erro ao registrar Service Worker:", erro);
-
-            });
+            .catch(console.error);
 
     });
 

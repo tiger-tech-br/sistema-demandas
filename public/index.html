@@ -1,18 +1,51 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="theme-color"
+        content="#2563eb"
+    >
 
     <title>Sistema de Demandas</title>
 
-    <link rel="stylesheet" href="css/style.css">
+    <link
+        rel="manifest"
+        href="manifest.json"
+    >
+
+    <link
+        rel="stylesheet"
+        href="css/style.css"
+    >
+
 </head>
+
 <body>
 
     <main class="container">
 
-        <h1>Sistema de Demandas</h1>
+        <header>
+
+            <h1>📋 Sistema de Demandas</h1>
+
+            <p class="subtitulo">
+                Controle de demandas e lembretes automáticos.
+            </p>
+
+        </header>
+
+        <!-- ===================== -->
+        <!-- CADASTRO -->
+        <!-- ===================== -->
 
         <section class="cadastro">
 
@@ -21,42 +54,72 @@
             <form id="formDemanda">
 
                 <div class="campo">
-                    <label for="numero">Número da Demanda</label>
+
+                    <label for="numero">
+
+                        Número da Demanda
+
+                    </label>
+
                     <input
                         type="text"
                         id="numero"
                         name="numero"
                         required
                     >
+
                 </div>
 
                 <div class="campo">
-                    <label for="assunto">Assunto</label>
+
+                    <label for="assunto">
+
+                        Assunto
+
+                    </label>
+
                     <input
                         type="text"
                         id="assunto"
                         name="assunto"
                         required
                     >
+
                 </div>
 
                 <div class="campo">
-                    <label for="vencimento">Data de Vencimento</label>
+
+                    <label for="vencimento">
+
+                        Data de Vencimento
+
+                    </label>
+
                     <input
                         type="date"
                         id="vencimento"
                         name="vencimento"
                         required
                     >
+
                 </div>
 
-                <button type="submit">
-                    Cadastrar Demanda
+                <button
+                    id="btnSalvar"
+                    type="submit"
+                >
+
+                    💾 Cadastrar Demanda
+
                 </button>
 
             </form>
 
         </section>
+
+        <!-- ===================== -->
+        <!-- LISTA -->
+        <!-- ===================== -->
 
         <section class="lista">
 
@@ -67,17 +130,20 @@
                 <thead>
 
                     <tr>
-                        <th>Nº</th>
+
+                        <th>Número</th>
+
                         <th>Assunto</th>
+
                         <th>Vencimento</th>
+
                         <th>Ações</th>
+
                     </tr>
 
                 </thead>
 
                 <tbody id="tabelaDemandas">
-
-                    <!-- As demandas aparecerão aqui -->
 
                 </tbody>
 
@@ -85,13 +151,28 @@
 
         </section>
 
-            <audio id="alarme">
-                <source src="audio/alarme.mp3" type="audio/mpeg">
-        </audio>
     </main>
+
+    <!-- Áudio utilizado apenas na versão Web -->
+    <audio id="alarme" preload="auto">
+
+        <source
+            src="audio/alarme.mp3"
+            type="audio/mpeg"
+        >
+
+    </audio>
+
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script src="js/utils.js"></script>
+
+    <script src="js/api.js"></script>
+
+    <script src="js/alarmes.js"></script>
+
     <script src="js/script.js"></script>
 
-
 </body>
+
 </html>
