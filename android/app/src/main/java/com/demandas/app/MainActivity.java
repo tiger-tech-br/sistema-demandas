@@ -15,7 +15,8 @@ public class MainActivity extends BridgeActivity {
     private static final int REQUEST_NOTIFICATION_PERMISSION = 100;
 
     @Override
-    public void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -27,7 +28,9 @@ public class MainActivity extends BridgeActivity {
 
                 ActivityCompat.requestPermissions(
                         this,
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        new String[]{
+                                Manifest.permission.POST_NOTIFICATIONS
+                        },
                         REQUEST_NOTIFICATION_PERMISSION
                 );
 
