@@ -255,6 +255,7 @@ async function verificarDemandasVencendoAmanha() {
         }
 
         const demandas = await resposta.json();
+        console.log(demandas);
 
         if (demandas.length === 0) {
 
