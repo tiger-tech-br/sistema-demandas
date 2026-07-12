@@ -26,7 +26,7 @@ public class AlarmScheduler {
         Calendar calendar = Calendar.getInstance();
 
         calendar.set(Calendar.HOUR_OF_DAY, 17);
-        calendar.set(Calendar.MINUTE, 10);
+        calendar.set(Calendar.MINUTE, 25);
         calendar.set(Calendar.SECOND, 0);
 
         // Se já passou das 10h hoje, agenda para amanhã

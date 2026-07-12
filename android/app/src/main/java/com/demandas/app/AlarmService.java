@@ -5,132 +5,118 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
-import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.IBinder;
-import android.os.VibrationEffect;
-import android.os.Vibrator;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+
+import org.json.JSONArray;
+
+import java.io.IOException;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class AlarmService extends Service {
 
     private static final String CHANNEL_ID = "demandas_channel";
 
-    private MediaPlayer mediaPlayer;
-
-    private Vibrator vibrator;
-
     @Override
     public void onCreate() {
-
         super.onCreate();
-
         criarCanal();
-
-        mediaPlayer = MediaPlayer.create(this, R.raw.alarme);
-
-        mediaPlayer.setLooping(true);
-
-        vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
-        Notification notification =
-                new NotificationCompat.Builder(this, CHANNEL_ID)
-
-                        .setSmallIcon(android.R.drawable.ic_dialog_alert)
-
-                        .setContentTitle("Sistema de Demandas")
-
-                        .setContentText("Existe uma demanda vencendo amanhã.")
-
-                        .setPriority(NotificationCompat.PRIORITY_HIGH)
-
-                        .setOngoing(true)
-
-                        .build();
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("Sistema de Demandas")
+                .setContentText("Verificando demandas...")
+                .setOngoing(true)
+                .build();
 
         startForeground(1, notification);
 
-        if (mediaPlayer != null && !mediaPlayer.isPlaying()) {
+        verificarDemandas();
 
-            mediaPlayer.start();
+        return START_NOT_STICKY;
+    }
 
-        }
+    private void verificarDemandas() {
 
-        if (vibrator != null) {
+        OkHttpClient client = new OkHttpClient();
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Request request = new Request.Builder()
+                .url("https://sistema-demandas-aw2w.onrender.com/demandas/vencendo-amanha")
+                .build();
 
-                vibrator.vibrate(
+        client.newCall(request).enqueue(new Callback() {
 
-                        VibrationEffect.createWaveform(
+            @Override
+            public void onFailure(Call call, IOException e) {
 
-                                new long[]{
-                                        0,
-                                        1000,
-                                        700
-                                },
-
-                                0
-
-                        )
-
-                );
-
-            } else {
-
-                vibrator.vibrate(
-
-                        new long[]{
-                                0,
-                                1000,
-                                700
-                        },
-
-                        0
-
-                );
+                stopSelf();
 
             }
 
-        }
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
 
-        return START_STICKY;
+                if (!response.isSuccessful()) {
+
+                    stopSelf();
+                    return;
+
+                }
+
+                String json = response.body().string();
+
+                try {
+
+                    JSONArray demandas = new JSONArray(json);
+
+                    if (demandas.length() == 0) {
+
+                        stopSelf();
+
+                    } else {
+
+                        mostrarNotificacao();
+
+                    }
+
+                } catch (Exception e) {
+
+                    stopSelf();
+
+                }
+
+            }
+
+        });
 
     }
 
-    @Override
-    public void onDestroy() {
+    private void mostrarNotificacao() {
 
-        super.onDestroy();
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setContentTitle("Sistema de Demandas")
+                .setContentText("Existe demanda vencendo amanhã.")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setOngoing(true)
+                .build();
 
-        if (mediaPlayer != null) {
+        NotificationManager manager =
+                (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
-            mediaPlayer.stop();
-
-            mediaPlayer.release();
-
-        }
-
-        if (vibrator != null) {
-
-            vibrator.cancel();
-
-        }
-
-    }
-
-    @Nullable
-    @Override
-    public IBinder onBind(Intent intent) {
-
-        return null;
+        manager.notify(2, notification);
 
     }
 
@@ -157,6 +143,21 @@ public class AlarmService extends Service {
             manager.createNotificationChannel(channel);
 
         }
+
+    }
+
+    @Override
+    public void onDestroy() {
+
+        super.onDestroy();
+
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+
+        return null;
 
     }
 
