@@ -416,3 +416,178 @@ td button:last-child:hover{
     }
 
 }
+
+/* ===================================
+   RESPONSIVO
+=================================== */
+
+@media (max-width:768px){
+
+    body{
+
+        overflow-x:hidden;
+
+    }
+
+    .container{
+
+        width:94%;
+
+        margin:20px auto;
+
+    }
+
+    h1{
+
+        font-size:2rem;
+
+        margin-bottom:5px;
+
+    }
+
+    .subtitulo{
+
+        font-size:.95rem;
+
+        margin-bottom:20px;
+
+    }
+
+    .cadastro,
+    .lista{
+
+        padding:18px;
+
+        border-radius:16px;
+
+    }
+
+    input{
+
+        width:100%;
+
+        font-size:16px;
+
+        padding:14px;
+
+    }
+
+    #btnSalvar{
+
+        width:100%;
+
+        margin-top:10px;
+
+    }
+
+    table,
+    tbody{
+
+        width:100%;
+
+        display:block;
+
+    }
+
+    thead{
+
+        display:none;
+
+    }
+
+    tr{
+
+        display:flex;
+
+        flex-direction:column;
+
+        gap:12px;
+
+        background:#fff;
+
+        padding:18px;
+
+        border-radius:14px;
+
+        margin-bottom:18px;
+
+        box-shadow:0 5px 15px rgba(0,0,0,.08);
+
+    }
+
+    td{
+
+        display:flex;
+
+        justify-content:space-between;
+
+        align-items:center;
+
+        padding:0;
+
+        border:none;
+
+        font-size:15px;
+
+    }
+
+    td::before{
+
+        font-weight:bold;
+
+        color:#374151;
+
+    }
+
+    td:nth-child(1)::before{
+
+        content:"Número";
+
+    }
+
+    td:nth-child(2)::before{
+
+        content:"Assunto";
+
+    }
+
+    td:nth-child(3)::before{
+
+        content:"Vencimento";
+
+    }
+
+    td:nth-child(4){
+
+        display:flex;
+
+        flex-direction:column;
+
+        gap:10px;
+
+        margin-top:10px;
+
+    }
+
+    td:nth-child(4)::before{
+
+        content:"";
+
+        display:none;
+
+    }
+
+    .btn-editar,
+    .btn-excluir{
+
+        width:100%;
+
+        padding:14px;
+
+        border-radius:10px;
+
+        font-size:15px;
+
+    }
+
+}

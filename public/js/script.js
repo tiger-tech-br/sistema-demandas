@@ -1,103 +1,101 @@
-const API = "https://sistema-demandas-aw2w.onrender.com";
-
 const form = document.getElementById("formDemanda");
 const tabelaDemandas = document.getElementById("tabelaDemandas");
 
 let demandaEditando = null;
 
-/* ===================================
-   EVENTOS
-=================================== */
+/* ==========================================
+   INICIALIZAÇÃO
+========================================== */
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", iniciarSistema);
 
-    carregarDemandas();
+async function iniciarSistema() {
 
-    verificarDemandasVencendoAmanha();
+    await carregarDemandas();
 
-});
+    await verificarDemandasVencendoAmanha();
+
+}
 
 form.addEventListener("submit", salvarDemanda);
 
-/* ===================================
+/* ==========================================
    CADASTRAR / EDITAR
-=================================== */
+========================================== */
 
 async function salvarDemanda(event) {
 
     event.preventDefault();
 
-    const numero_demanda = document.getElementById("numero").value.trim();
+    const dados = {
 
-    const assunto = document.getElementById("assunto").value.trim();
+        numero_demanda: document.getElementById("numero").value.trim(),
 
-    const data_vencimento = document.getElementById("vencimento").value;
+        assunto: document.getElementById("assunto").value.trim(),
 
-    const url = demandaEditando
+        data_vencimento: document.getElementById("vencimento").value
 
-        ? `${API}/demandas/${demandaEditando}`
-
-        : `${API}/demandas`;
-
-    const metodo = demandaEditando ? "PUT" : "POST";
+    };
 
     try {
 
-        const resposta = await fetch(url, {
+        let resposta;
 
-            method: metodo,
+        if (demandaEditando) {
 
-            headers: {
+            resposta = await apiPut(
 
-                "Content-Type": "application/json"
+                `/demandas/${demandaEditando}`,
 
-            },
+                dados
 
-            body: JSON.stringify({
+            );
 
-                numero_demanda,
+        } else {
 
-                assunto,
+            resposta = await apiPost(
 
-                data_vencimento
+                "/demandas",
 
-            })
+                dados
 
-        });
-
-        const dados = await resposta.json();
-
-        if (!resposta.ok) {
-
-            return alertaErro(dados.mensagem);
+            );
 
         }
 
-        alertaSucesso(dados.mensagem);
+        const resultado = await resposta.json();
+
+        if (!resposta.ok) {
+
+            return alertaErro(resultado.mensagem);
+
+        }
+
+        alertaSucesso(resultado.mensagem);
 
         limparFormulario();
 
-        carregarDemandas();
+        await carregarDemandas();
 
     } catch (erro) {
 
         console.error(erro);
 
-        alertaErro("Não foi possível conectar ao servidor.");
+        alertaErro("Erro ao conectar ao servidor.");
 
     }
 
 }
 
-/* ===================================
-   LISTAR DEMANDAS
-=================================== */
+/* ==========================================
+   LISTAR
+========================================== */
 
 async function carregarDemandas() {
 
     try {
 
-        const resposta = await fetch(`${API}/demandas`);
+        const resposta = await apiGet("/demandas");
 
         if (!resposta.ok) {
 
@@ -109,48 +107,7 @@ async function carregarDemandas() {
 
         tabelaDemandas.innerHTML = "";
 
-        demandas.forEach((demanda) => {
-
-            tabelaDemandas.innerHTML += `
-
-                <tr>
-
-                    <td>${demanda.numero_demanda}</td>
-
-                    <td>${demanda.assunto}</td>
-
-                    <td>${formatarData(demanda.data_vencimento)}</td>
-
-                    <td>
-
-                        <button
-                            class="btn-editar"
-                            onclick="editarDemanda(
-                                ${demanda.id},
-                                '${demanda.numero_demanda}',
-                                '${demanda.assunto}',
-                                '${demanda.data_vencimento}'
-                            )">
-
-                            ✏️ Editar
-
-                        </button>
-
-                        <button
-                            class="btn-excluir"
-                            onclick="excluirDemanda(${demanda.id})">
-
-                            🗑️ Excluir
-
-                        </button>
-
-                    </td>
-
-                </tr>
-
-            `;
-
-        });
+        demandas.forEach(criarLinhaTabela);
 
     } catch (erro) {
 
@@ -162,9 +119,52 @@ async function carregarDemandas() {
 
 }
 
-/* ===================================
+function criarLinhaTabela(demanda) {
+
+    const linha = document.createElement("tr");
+
+    linha.innerHTML = `
+
+        <td>${demanda.numero_demanda}</td>
+
+        <td>${demanda.assunto}</td>
+
+        <td>${formatarData(demanda.data_vencimento)}</td>
+
+        <td>
+
+            <button
+                class="btn-editar"
+                onclick="editarDemanda(
+                    ${demanda.id},
+                    '${demanda.numero_demanda}',
+                    '${demanda.assunto}',
+                    '${demanda.data_vencimento}'
+                )">
+
+                ✏️ Editar
+
+            </button>
+
+            <button
+                class="btn-excluir"
+                onclick="excluirDemanda(${demanda.id})">
+
+                🗑️ Excluir
+
+            </button>
+
+        </td>
+
+    `;
+
+    tabelaDemandas.appendChild(linha);
+
+}
+
+/* ==========================================
    EDITAR
-=================================== */
+========================================== */
 
 function editarDemanda(id, numero, assunto, vencimento) {
 
@@ -188,9 +188,9 @@ function editarDemanda(id, numero, assunto, vencimento) {
 
 }
 
-/* ===================================
+/* ==========================================
    EXCLUIR
-=================================== */
+========================================== */
 
 async function excluirDemanda(id) {
 
@@ -210,23 +210,23 @@ async function excluirDemanda(id) {
 
     try {
 
-        const resposta = await fetch(`${API}/demandas/${id}`, {
+        const resposta = await apiDelete(
 
-            method: "DELETE"
+            `/demandas/${id}`
 
-        });
+        );
 
-        const dados = await resposta.json();
+        const resultado = await resposta.json();
 
         if (!resposta.ok) {
 
-            return alertaErro(dados.mensagem);
+            return alertaErro(resultado.mensagem);
 
         }
 
-        alertaSucesso(dados.mensagem);
+        alertaSucesso(resultado.mensagem);
 
-        carregarDemandas();
+        await carregarDemandas();
 
     } catch (erro) {
 
@@ -238,15 +238,19 @@ async function excluirDemanda(id) {
 
 }
 
-/* ===================================
+/* ==========================================
    ALERTA WEB
-=================================== */
+========================================== */
 
 async function verificarDemandasVencendoAmanha() {
 
     try {
 
-        const resposta = await fetch(`${API}/demandas/vencendo-amanha`);
+        const resposta = await apiGet(
+
+            "/demandas/vencendo-amanha"
+
+        );
 
         if (!resposta.ok) {
 
@@ -255,7 +259,6 @@ async function verificarDemandasVencendoAmanha() {
         }
 
         const demandas = await resposta.json();
-        console.log(demandas);
 
         if (demandas.length === 0) {
 
@@ -268,15 +271,10 @@ async function verificarDemandasVencendoAmanha() {
         demandas.forEach((demanda) => {
 
             mensagem += `
-
                 <b>Nº:</b> ${demanda.numero_demanda}<br>
-
                 <b>Assunto:</b> ${demanda.assunto}<br>
-
                 <b>Vencimento:</b> ${formatarData(demanda.data_vencimento)}
-
                 <br><br>
-
             `;
 
         });
@@ -301,9 +299,9 @@ async function verificarDemandasVencendoAmanha() {
 
 }
 
-/* ===================================
+/* ==========================================
    LIMPAR FORMULÁRIO
-=================================== */
+========================================== */
 
 function limparFormulario() {
 
@@ -321,25 +319,29 @@ function limparFormulario() {
 
 }
 
-/* ===================================
+/* ==========================================
    SERVICE WORKER
-=================================== */
+========================================== */
 
 if ("serviceWorker" in navigator) {
 
-    window.addEventListener("load", () => {
+    window.addEventListener("load", async () => {
 
-        navigator.serviceWorker
+        try {
 
-            .register("/service-worker.js")
+            await navigator.serviceWorker.register(
 
-            .then(() => {
+                "/service-worker.js"
 
-                console.log("Service Worker registrado.");
+            );
 
-            })
+            console.log("Service Worker registrado.");
 
-            .catch(console.error);
+        } catch (erro) {
+
+            console.error(erro);
+
+        }
 
     });
 

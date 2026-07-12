@@ -6,9 +6,11 @@ function formatarData(data) {
 
     if (!data) return "";
 
-    const [ano, mes, dia] = data.split("-");
+    const somenteData = data.split("T")[0];
 
-    return `${dia}/${mes}/${ano}`;
+    const partes = somenteData.split("-");
+
+    return `${partes[2]}/${partes[1]}/${partes[0]}`;
 
 }
 
