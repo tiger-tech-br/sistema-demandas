@@ -1,4 +1,5 @@
-const express = require("express");
+﻿const express = require("express");
+const os = require("os");
 const cors = require("cors");
 require("dotenv").config();
 
@@ -8,7 +9,7 @@ const demandaRoutes = require("./routes/demandaRoutes");
 const app = express();
 
 /* ===========================
-   CONFIGURAÇÕES
+   CONFIGURAÃ‡Ã•ES
 =========================== */
 
 app.use(cors());
@@ -57,34 +58,49 @@ db.connect()
 
     .then(() => {
 
-        console.log("✅ Banco de dados conectado.");
+        console.log("âœ… Banco de dados conectado.");
 
     })
 
     .catch((erro) => {
 
-        console.error("❌ Erro ao conectar ao banco:");
+        console.error("âŒ Erro ao conectar ao banco:");
 
         console.error(erro);
 
     });
 
+function obterIpDaRede() {
+    const redes = os.networkInterfaces();
+
+    for (const interfaces of Object.values(redes)) {
+        const rede = interfaces.find((item) => item.family === "IPv4" && !item.internal);
+
+        if (rede) {
+            return rede.address;
+        }
+    }
+
+    return "localhost";
+}
 /* ===========================
    SERVIDOR
 =========================== */
 
-const PORT = process.env.PORT || 3001;
+const isDev = process.env.npm_lifecycle_event === "dev";
+const PORT = isDev ? 4000 : process.env.PORT || 4000;
 
 app.listen(PORT, "0.0.0.0", () => {
 
     console.log("\n======================================");
 
-    console.log("🚀 Sistema de Demandas iniciado");
+    console.log("ðŸš€ Sistema de Demandas iniciado");
 
-    console.log(`🌐 Local: http://localhost:${PORT}`);
+    console.log(`ðŸŒ Local: http://localhost:${PORT}`);
 
-    console.log(`📡 Rede : http://192.168.0.8:${PORT}`);
+    console.log(`ðŸ“¡ Rede : http://${obterIpDaRede()}:${PORT}`);
 
     console.log("======================================\n");
 
 });
+
