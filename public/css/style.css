@@ -233,6 +233,21 @@ td{
 
     border-bottom:1px solid #e5e7eb;
 
+    word-break:normal;
+
+    overflow-wrap:normal;
+
+    hyphens:none;
+
+}
+
+th:nth-child(2),
+td:nth-child(2){
+
+    width:45%;
+
+    text-align:left;
+
 }
 
 tbody tr:hover{
@@ -365,13 +380,37 @@ td button:last-child:hover{
 
         display:flex;
 
-        justify-content:space-between;
+        justify-content:flex-start;
 
-        align-items:center;
+        align-items:flex-start;
+
+        gap:12px;
 
         border:none;
 
         padding:10px 0;
+
+        text-align:left;
+
+        line-height:1.35;
+
+    }
+
+    td::before{
+
+        flex:0 0 100px;
+
+    }
+
+    td:nth-child(2){
+
+        width:100%;
+
+        white-space:normal;
+
+        word-break:normal;
+
+        overflow-wrap:normal;
 
     }
 
@@ -519,15 +558,21 @@ td button:last-child:hover{
 
         display:flex;
 
-        justify-content:space-between;
+        justify-content:flex-start;
 
-        align-items:center;
+        align-items:flex-start;
+
+        gap:12px;
 
         padding:0;
 
         border:none;
 
         font-size:15px;
+
+        text-align:left;
+
+        line-height:1.35;
 
     }
 
@@ -536,6 +581,20 @@ td button:last-child:hover{
         font-weight:bold;
 
         color:#374151;
+
+        flex:0 0 100px;
+
+    }
+
+    td:nth-child(2){
+
+        width:100%;
+
+        white-space:normal;
+
+        word-break:normal;
+
+        overflow-wrap:normal;
 
     }
 

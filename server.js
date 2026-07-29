@@ -58,13 +58,13 @@ db.connect()
 
     .then(() => {
 
-        console.log("âœ… Banco de dados conectado.");
+        console.log("Banco de dados conectado.");
 
     })
 
     .catch((erro) => {
 
-        console.error("âŒ Erro ao conectar ao banco:");
+        console.error("Erro ao conectar ao banco:");
 
         console.error(erro);
 
@@ -94,13 +94,14 @@ app.listen(PORT, "0.0.0.0", () => {
 
     console.log("\n======================================");
 
-    console.log("ðŸš€ Sistema de Demandas iniciado");
+    console.log("Sistema de Demandas iniciado");
 
-    console.log(`ðŸŒ Local: http://localhost:${PORT}`);
+    console.log(`Local: http://localhost:${PORT}`);
 
-    console.log(`ðŸ“¡ Rede : http://${obterIpDaRede()}:${PORT}`);
+    console.log(`Rede : http://${obterIpDaRede()}:${PORT}`);
 
     console.log("======================================\n");
 
 });
+
 

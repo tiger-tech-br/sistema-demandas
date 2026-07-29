@@ -110,7 +110,7 @@ async function buscarDemandasVencendoAmanha() {
             assunto,
             TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento
         FROM demandas
-        WHERE data_vencimento = CURRENT_DATE + INTERVAL '1 day'
+        WHERE data_vencimento = ((CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::date + INTERVAL '1 day')
         ORDER BY data_vencimento;
     `;
 
