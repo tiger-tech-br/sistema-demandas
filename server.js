@@ -4,6 +4,7 @@ const cors = require("cors");
 require("dotenv").config();
 
 const db = require("./config/db");
+const inicializarBanco = require("./config/initDb");
 const demandaRoutes = require("./routes/demandaRoutes");
 
 const app = express();
@@ -54,19 +55,16 @@ app.get("/api", (req, res) => {
    BANCO DE DADOS
 =========================== */
 
-if (db.hasConfig) {
-    db.connect()
-        .then((client) => {
-            client.release();
+inicializarBanco()
+    .then(() => {
+        if (db.hasConfig) {
             console.log("Banco de dados conectado.");
-        })
-        .catch((erro) => {
-            console.error("Erro ao conectar ao banco:");
-            console.error(erro);
-        });
-} else {
-    console.warn("Banco de dados nao configurado.");
-}
+        }
+    })
+    .catch((erro) => {
+        console.error("Erro ao preparar o banco de dados:");
+        console.error(erro);
+    });
 
 function obterIpDaRede() {
     const redes = os.networkInterfaces();

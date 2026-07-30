@@ -3,6 +3,7 @@ const demandaModel = require("../models/demandaModel");
 const REGEX_NUMERO_DEMANDA = /^[0-9]{1,20}$/;
 const REGEX_ASSUNTO = /^[A-Za-zÀ-ÿ0-9\s.,;:!?()/-]{3,120}$/;
 const REGEX_DATA = /^\d{4}-\d{2}-\d{2}$/;
+const REGEX_ID = /^[0-9]+$/;
 
 function dataValida(data) {
     if (!REGEX_DATA.test(data)) {
@@ -38,14 +39,13 @@ function validarDemanda({ numero_demanda, assunto, data_vencimento }) {
     return null;
 }
 
+function validarId(id) {
+    return REGEX_ID.test(String(id));
+}
+
 async function criarDemanda(req, res) {
     try {
-        const {
-            numero_demanda,
-            assunto,
-            data_vencimento
-        } = req.body;
-
+        const { numero_demanda, assunto, data_vencimento } = req.body;
         const erroValidacao = validarDemanda({
             numero_demanda,
             assunto,
@@ -53,9 +53,7 @@ async function criarDemanda(req, res) {
         });
 
         if (erroValidacao) {
-            return res.status(400).json({
-                mensagem: erroValidacao
-            });
+            return res.status(400).json({ mensagem: erroValidacao });
         }
 
         const novaDemanda = await demandaModel.criarDemanda(
@@ -69,11 +67,8 @@ async function criarDemanda(req, res) {
             demanda: novaDemanda
         });
     } catch (erro) {
-        console.error(erro);
-
-        return res.status(500).json({
-            mensagem: "Erro ao cadastrar demanda."
-        });
+        console.error("Erro ao cadastrar demanda:", erro);
+        return res.status(500).json({ mensagem: "Erro ao cadastrar demanda." });
     }
 }
 
@@ -82,11 +77,8 @@ async function listarDemandas(req, res) {
         const demandas = await demandaModel.listarDemandas();
         return res.status(200).json(demandas);
     } catch (erro) {
-        console.error(erro);
-
-        return res.status(500).json({
-            mensagem: "Erro ao buscar demandas."
-        });
+        console.error("Erro ao buscar demandas:", erro);
+        return res.status(500).json({ mensagem: "Erro ao buscar demandas." });
     }
 }
 
@@ -94,29 +86,20 @@ async function excluirDemanda(req, res) {
     try {
         const { id } = req.params;
 
-        if (!/^[0-9]+$/.test(id)) {
-            return res.status(400).json({
-                mensagem: "ID inválido."
-            });
+        if (!validarId(id)) {
+            return res.status(400).json({ mensagem: "ID inválido." });
         }
 
         const demanda = await demandaModel.excluirDemanda(id);
 
         if (!demanda) {
-            return res.status(404).json({
-                mensagem: "Demanda não encontrada."
-            });
+            return res.status(404).json({ mensagem: "Demanda não encontrada." });
         }
 
-        return res.status(200).json({
-            mensagem: "Demanda excluída com sucesso."
-        });
+        return res.status(200).json({ mensagem: "Demanda excluída com sucesso." });
     } catch (erro) {
-        console.error(erro);
-
-        return res.status(500).json({
-            mensagem: "Erro ao excluir demanda."
-        });
+        console.error("Erro ao excluir demanda:", erro);
+        return res.status(500).json({ mensagem: "Erro ao excluir demanda." });
     }
 }
 
@@ -124,18 +107,11 @@ async function atualizarDemanda(req, res) {
     try {
         const { id } = req.params;
 
-        if (!/^[0-9]+$/.test(id)) {
-            return res.status(400).json({
-                mensagem: "ID inválido."
-            });
+        if (!validarId(id)) {
+            return res.status(400).json({ mensagem: "ID inválido." });
         }
 
-        const {
-            numero_demanda,
-            assunto,
-            data_vencimento
-        } = req.body;
-
+        const { numero_demanda, assunto, data_vencimento } = req.body;
         const erroValidacao = validarDemanda({
             numero_demanda,
             assunto,
@@ -143,9 +119,7 @@ async function atualizarDemanda(req, res) {
         });
 
         if (erroValidacao) {
-            return res.status(400).json({
-                mensagem: erroValidacao
-            });
+            return res.status(400).json({ mensagem: erroValidacao });
         }
 
         const demanda = await demandaModel.atualizarDemanda(
@@ -156,9 +130,7 @@ async function atualizarDemanda(req, res) {
         );
 
         if (!demanda) {
-            return res.status(404).json({
-                mensagem: "Demanda não encontrada."
-            });
+            return res.status(404).json({ mensagem: "Demanda não encontrada." });
         }
 
         return res.status(200).json({
@@ -166,11 +138,8 @@ async function atualizarDemanda(req, res) {
             demanda
         });
     } catch (erro) {
-        console.error(erro);
-
-        return res.status(500).json({
-            mensagem: "Erro ao atualizar demanda."
-        });
+        console.error("Erro ao atualizar demanda:", erro);
+        return res.status(500).json({ mensagem: "Erro ao atualizar demanda." });
     }
 }
 
@@ -179,11 +148,8 @@ async function buscarDemandasVencendoAmanha(req, res) {
         const demandas = await demandaModel.buscarDemandasVencendoAmanha();
         return res.status(200).json(demandas);
     } catch (erro) {
-        console.error(erro);
-
-        return res.status(500).json({
-            mensagem: "Erro ao verificar demandas."
-        });
+        console.error("Erro ao verificar demandas:", erro);
+        return res.status(500).json({ mensagem: "Erro ao verificar demandas." });
     }
 }
 
