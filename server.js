@@ -54,21 +54,19 @@ app.get("/api", (req, res) => {
    BANCO DE DADOS
 =========================== */
 
-db.connect()
-
-    .then(() => {
-
-        console.log("Banco de dados conectado.");
-
-    })
-
-    .catch((erro) => {
-
-        console.error("Erro ao conectar ao banco:");
-
-        console.error(erro);
-
-    });
+if (db.hasConfig) {
+    db.connect()
+        .then((client) => {
+            client.release();
+            console.log("Banco de dados conectado.");
+        })
+        .catch((erro) => {
+            console.error("Erro ao conectar ao banco:");
+            console.error(erro);
+        });
+} else {
+    console.warn("Banco de dados nao configurado.");
+}
 
 function obterIpDaRede() {
     const redes = os.networkInterfaces();
@@ -99,6 +97,8 @@ app.listen(PORT, "0.0.0.0", () => {
     console.log(`Local: http://localhost:${PORT}`);
 
     console.log(`Rede : http://${obterIpDaRede()}:${PORT}`);
+
+    console.log(`PORT Railway: ${process.env.PORT || "nao definida"}`);
 
     console.log("======================================\n");
 
