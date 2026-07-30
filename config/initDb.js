@@ -9,11 +9,26 @@ async function inicializarBanco() {
     await db.query(`
         CREATE TABLE IF NOT EXISTS demandas (
             id SERIAL PRIMARY KEY,
-            numero_demanda VARCHAR(20) NOT NULL,
-            assunto VARCHAR(120) NOT NULL,
-            data_vencimento DATE NOT NULL,
+            numero_demanda VARCHAR(20),
+            assunto VARCHAR(120),
+            data_vencimento DATE,
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+    `);
+
+    await db.query(`
+        ALTER TABLE demandas
+        ADD COLUMN IF NOT EXISTS numero_demanda VARCHAR(20);
+    `);
+
+    await db.query(`
+        ALTER TABLE demandas
+        ADD COLUMN IF NOT EXISTS assunto VARCHAR(120);
+    `);
+
+    await db.query(`
+        ALTER TABLE demandas
+        ADD COLUMN IF NOT EXISTS data_vencimento DATE;
     `);
 
     await db.query(`
