@@ -51,21 +51,6 @@ app.get("/api", (req, res) => {
 
 });
 
-/* ===========================
-   BANCO DE DADOS
-=========================== */
-
-inicializarBanco()
-    .then(() => {
-        if (db.hasConfig) {
-            console.log("Banco de dados conectado.");
-        }
-    })
-    .catch((erro) => {
-        console.error("Erro ao preparar o banco de dados:");
-        console.error(erro);
-    });
-
 function obterIpDaRede() {
     const redes = os.networkInterfaces();
 
@@ -86,20 +71,39 @@ function obterIpDaRede() {
 const isDev = process.env.npm_lifecycle_event === "dev";
 const PORT = isDev ? 4000 : process.env.PORT || 4000;
 
-app.listen(PORT, "0.0.0.0", () => {
+async function iniciarServidor() {
+    try {
+        await inicializarBanco();
 
-    console.log("\n======================================");
+        if (db.hasConfig) {
+            console.log("Banco de dados conectado.");
+        }
+    } catch (erro) {
+        console.error("Erro ao preparar o banco de dados:");
+        console.error(erro);
 
-    console.log("Sistema de Demandas iniciado");
+        if (process.env.NODE_ENV === "production") {
+            process.exit(1);
+        }
+    }
 
-    console.log(`Local: http://localhost:${PORT}`);
+    app.listen(PORT, "0.0.0.0", () => {
 
-    console.log(`Rede : http://${obterIpDaRede()}:${PORT}`);
+        console.log("\n======================================");
 
-    console.log(`PORT Railway: ${process.env.PORT || "nao definida"}`);
+        console.log("Sistema de Demandas iniciado");
 
-    console.log("======================================\n");
+        console.log(`Local: http://localhost:${PORT}`);
 
-});
+        console.log(`Rede : http://${obterIpDaRede()}:${PORT}`);
+
+        console.log(`PORT Railway: ${process.env.PORT || "nao definida"}`);
+
+        console.log("======================================\n");
+
+    });
+}
+
+iniciarServidor();
 
 
