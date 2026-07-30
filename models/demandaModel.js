@@ -1,6 +1,20 @@
 const db = require("../config/db");
+const inicializarBanco = require("../config/initDb");
+
+let bancoInicializado = false;
+
+async function garantirBanco() {
+    if (bancoInicializado) {
+        return;
+    }
+
+    await inicializarBanco();
+    bancoInicializado = true;
+}
 
 async function criarDemanda(numero_demanda, assunto, data_vencimento) {
+    await garantirBanco();
+
     const sql = `
         INSERT INTO demandas
         (
@@ -27,6 +41,8 @@ async function criarDemanda(numero_demanda, assunto, data_vencimento) {
 }
 
 async function listarDemandas() {
+    await garantirBanco();
+
     const sql = `
         SELECT
             id,
@@ -43,6 +59,8 @@ async function listarDemandas() {
 }
 
 async function excluirDemanda(id) {
+    await garantirBanco();
+
     const sql = `
         DELETE FROM demandas
         WHERE id = $1
@@ -55,6 +73,8 @@ async function excluirDemanda(id) {
 }
 
 async function atualizarDemanda(id, numero_demanda, assunto, data_vencimento) {
+    await garantirBanco();
+
     const sql = `
         UPDATE demandas
         SET
@@ -80,6 +100,8 @@ async function atualizarDemanda(id, numero_demanda, assunto, data_vencimento) {
 }
 
 async function buscarDemandasVencendoAmanha() {
+    await garantirBanco();
+
     const sql = `
         SELECT
             id,
