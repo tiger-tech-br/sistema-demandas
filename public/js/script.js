@@ -1,4 +1,5 @@
 const STORAGE_KEY = "sistema-demandas";
+const MIGRATION_KEY = "sistema-demandas-migrado-para-banco";
 
 const form = document.getElementById("formDemanda");
 const listaDemandas = document.getElementById("listaDemandas");
@@ -10,6 +11,8 @@ const filtroRegional = document.getElementById("filtroRegional");
 const filtroStatus = document.getElementById("filtroStatus");
 const filtroConclusao = document.getElementById("filtroConclusao");
 
+let demandasCache = [];
+
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("/service-worker.js").catch((erro) => {
@@ -18,16 +21,22 @@ if ("serviceWorker" in navigator) {
     });
 }
 
-function carregarDemandas() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-}
+async function apiJson(url, opcoes = {}) {
+    const resposta = await fetch(url, {
+        headers: {
+            "Content-Type": "application/json",
+            ...(opcoes.headers || {})
+        },
+        ...opcoes
+    });
 
-function salvarDemandas(demandas) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(demandas));
-}
+    const corpo = await resposta.json().catch(() => ({}));
 
-function criarId() {
-    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    if (!resposta.ok) {
+        throw new Error(corpo.mensagem || "Erro ao acessar o servidor.");
+    }
+
+    return corpo;
 }
 
 function hojeIso() {
@@ -55,16 +64,16 @@ function diasAteVencimento(dataIso) {
 function obterStatus(demanda) {
     if (demanda.concluida) {
         return {
-            texto: "Concluída",
+            texto: "Concluida",
             classe: "status-concluido"
         };
     }
 
-    const dias = diasAteVencimento(demanda.vencimento);
+    const dias = diasAteVencimento(demanda.data_vencimento);
 
     if (dias >= 0 && dias <= 3) {
         return {
-            texto: "Próxima de vencer",
+            texto: "Proxima de vencer",
             classe: "status-vencendo"
         };
     }
@@ -84,7 +93,7 @@ function formatarData(dataIso) {
 }
 
 function textoSeguro(valor) {
-    return String(valor).replace(/[&<>"']/g, (caractere) => ({
+    return String(valor || "").replace(/[&<>"']/g, (caractere) => ({
         "&": "&amp;",
         "<": "&lt;",
         ">": "&gt;",
@@ -100,15 +109,48 @@ function normalizarTexto(valor) {
         .toLowerCase();
 }
 
+function adaptarDemandaLocal(demanda) {
+    return {
+        numero_demanda: demanda.numero,
+        beneficiario: demanda.beneficiario,
+        regional: demanda.regional,
+        assunto: demanda.assunto,
+        data_vencimento: demanda.vencimento,
+        concluida: Boolean(demanda.concluida)
+    };
+}
+
+async function migrarLocalStorageParaBanco() {
+    if (localStorage.getItem(MIGRATION_KEY) === "sim") {
+        return;
+    }
+
+    const demandasLocais = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+
+    if (demandasLocais.length === 0) {
+        localStorage.setItem(MIGRATION_KEY, "sim");
+        return;
+    }
+
+    for (const demanda of demandasLocais) {
+        await apiJson("/demandas", {
+            method: "POST",
+            body: JSON.stringify(adaptarDemandaLocal(demanda))
+        });
+    }
+
+    localStorage.setItem(MIGRATION_KEY, "sim");
+}
+
 function filtrarDemandas(demandas) {
     const termo = normalizarTexto(pesquisa.value);
     const regional = filtroRegional.value;
-    const statusSelecionado = filtroStatus.value;
-    const conclusaoSelecionada = filtroConclusao.value;
+    const statusSelecionado = normalizarTexto(filtroStatus.value);
+    const conclusaoSelecionada = normalizarTexto(filtroConclusao.value);
 
     return demandas.filter((demanda) => {
-        const status = obterStatus(demanda).texto;
-        const conclusao = demanda.concluida ? "Concluída" : "Pendente";
+        const status = normalizarTexto(obterStatus(demanda).texto);
+        const conclusao = normalizarTexto(demanda.concluida ? "Concluida" : "Pendente");
         const nomeBeneficiario = normalizarTexto(demanda.beneficiario);
 
         return (
@@ -121,7 +163,7 @@ function filtrarDemandas(demandas) {
 }
 
 function renderizarDemandas() {
-    const demandas = filtrarDemandas(carregarDemandas());
+    const demandas = filtrarDemandas(demandasCache);
 
     if (demandas.length === 0) {
         listaDemandas.innerHTML = `
@@ -134,20 +176,20 @@ function renderizarDemandas() {
 
     listaDemandas.innerHTML = demandas.map((demanda) => {
         const concluida = demanda.concluida;
-        const conclusao = concluida ? "Concluída" : "Pendente";
+        const conclusao = concluida ? "Concluida" : "Pendente";
         const classeConclusao = concluida ? "status-concluido" : "status-andamento";
         const status = obterStatus(demanda);
 
         return `
             <tr>
-                <td data-label="N° de Demanda">${textoSeguro(demanda.numero)}</td>
-                <td data-label="Nome do Beneficiário">${textoSeguro(demanda.beneficiario)}</td>
-                <td data-label="Regional">${textoSeguro(demanda.regional || "")}</td>
+                <td data-label="N. de Demanda">${textoSeguro(demanda.numero_demanda)}</td>
+                <td data-label="Nome do Beneficiario">${textoSeguro(demanda.beneficiario)}</td>
+                <td data-label="Regional">${textoSeguro(demanda.regional)}</td>
                 <td data-label="Assunto">${textoSeguro(demanda.assunto)}</td>
-                <td data-label="Conclusão" class="${classeConclusao}">${conclusao}</td>
-                <td data-label="Data da Demanda">${formatarData(demanda.vencimento)}</td>
+                <td data-label="Conclusao" class="${classeConclusao}">${conclusao}</td>
+                <td data-label="Data da Demanda">${formatarData(demanda.data_vencimento)}</td>
                 <td data-label="Status" class="${status.classe}">${status.texto}</td>
-                <td data-label="Ação">${concluida ? "" : `<button type="button" data-id="${demanda.id}">Concluído</button>`}</td>
+                <td data-label="Acao">${concluida ? "" : `<button type="button" data-id="${demanda.id}">Concluido</button>`}</td>
             </tr>
         `;
     }).join("");
@@ -159,60 +201,90 @@ function abrirPopup(mensagem) {
 }
 
 function verificarPendencias() {
-    const demandas = carregarDemandas();
-    const vencendoAmanha = demandas.filter((demanda) => (
-        !demanda.concluida && demanda.vencimento === amanhaIso()
+    const vencendoAmanha = demandasCache.filter((demanda) => (
+        !demanda.concluida && demanda.data_vencimento === amanhaIso()
     ));
 
     if (vencendoAmanha.length === 0) {
         return;
     }
 
-    const numeros = vencendoAmanha.map((demanda) => demanda.numero).join(", ");
-    abrirPopup(`Demanda pendente com vencimento amanhã: ${numeros}.`);
+    const numeros = vencendoAmanha.map((demanda) => demanda.numero_demanda).join(", ");
+    abrirPopup(`Demanda pendente com vencimento amanha: ${numeros}.`);
 }
 
-form.addEventListener("submit", (event) => {
-    event.preventDefault();
+async function carregarDemandasDoBanco() {
+    listaDemandas.innerHTML = `
+        <tr>
+            <td class="vazio" colspan="8">Carregando demandas...</td>
+        </tr>
+    `;
 
-    const demandas = carregarDemandas();
+    await migrarLocalStorageParaBanco();
 
-    demandas.push({
-        id: criarId(),
-        numero: document.getElementById("numero").value.trim(),
+    demandasCache = await apiJson("/demandas");
+    renderizarDemandas();
+    verificarPendencias();
+}
+
+function montarPayloadDoFormulario() {
+    return {
+        numero_demanda: document.getElementById("numero").value.trim(),
         beneficiario: document.getElementById("beneficiario").value.trim(),
         regional: document.getElementById("regional").value,
         assunto: document.getElementById("assunto").value.trim(),
-        vencimento: document.getElementById("vencimento").value || hojeIso(),
+        data_vencimento: document.getElementById("vencimento").value || hojeIso(),
         concluida: false
-    });
+    };
+}
 
-    salvarDemandas(demandas);
-    form.reset();
-    renderizarDemandas();
-    verificarPendencias();
+form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+        const resposta = await apiJson("/demandas", {
+            method: "POST",
+            body: JSON.stringify(montarPayloadDoFormulario())
+        });
+
+        demandasCache.push(resposta.demanda);
+        form.reset();
+        renderizarDemandas();
+        verificarPendencias();
+    } catch (erro) {
+        abrirPopup(erro.message);
+    }
 });
 
-listaDemandas.addEventListener("click", (event) => {
+listaDemandas.addEventListener("click", async (event) => {
     const botao = event.target.closest("button[data-id]");
 
     if (!botao) {
         return;
     }
 
-    const demandas = carregarDemandas().map((demanda) => {
-        if (demanda.id !== botao.dataset.id) {
-            return demanda;
-        }
+    const demanda = demandasCache.find((item) => String(item.id) === botao.dataset.id);
 
-        return {
-            ...demanda,
-            concluida: true
-        };
-    });
+    if (!demanda) {
+        return;
+    }
 
-    salvarDemandas(demandas);
-    renderizarDemandas();
+    try {
+        const resposta = await apiJson(`/demandas/${demanda.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+                ...demanda,
+                concluida: true
+            })
+        });
+
+        demandasCache = demandasCache.map((item) => (
+            item.id === resposta.demanda.id ? resposta.demanda : item
+        ));
+        renderizarDemandas();
+    } catch (erro) {
+        abrirPopup(erro.message);
+    }
 });
 
 fecharPopup.addEventListener("click", () => {
@@ -224,5 +296,7 @@ fecharPopup.addEventListener("click", () => {
     campo.addEventListener("change", renderizarDemandas);
 });
 
-renderizarDemandas();
-verificarPendencias();
+carregarDemandasDoBanco().catch((erro) => {
+    console.error(erro);
+    abrirPopup("Nao foi possivel carregar as demandas do banco de dados.");
+});

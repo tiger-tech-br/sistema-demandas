@@ -1,9 +1,18 @@
 const demandaModel = require("../models/demandaModel");
 
 const REGEX_NUMERO_DEMANDA = /^[0-9]{1,20}$/;
+const REGEX_TEXTO = /^[A-Za-zÀ-ÿ0-9\s.,;:!?()/-]{2,120}$/;
 const REGEX_ASSUNTO = /^[A-Za-zÀ-ÿ0-9\s.,;:!?()/-]{3,120}$/;
 const REGEX_DATA = /^\d{4}-\d{2}-\d{2}$/;
 const REGEX_ID = /^[0-9]+$/;
+const REGIONAIS = new Set([
+    "ABC",
+    "Campinas",
+    "Sorocaba",
+    "Baixada Santista",
+    "Americana",
+    "Nacional"
+]);
 
 function dataValida(data) {
     if (!REGEX_DATA.test(data)) {
@@ -19,21 +28,29 @@ function dataValida(data) {
         dataConvertida.getDate() === dia;
 }
 
-function validarDemanda({ numero_demanda, assunto, data_vencimento }) {
-    if (!numero_demanda || !assunto || !data_vencimento) {
+function validarDemanda({ numero_demanda, beneficiario, regional, assunto, data_vencimento }) {
+    if (!numero_demanda || !beneficiario || !regional || !assunto || !data_vencimento) {
         return "Preencha todos os campos.";
     }
 
     if (!REGEX_NUMERO_DEMANDA.test(String(numero_demanda))) {
-        return "O campo N° de Demanda deve conter apenas números.";
+        return "O campo numero da demanda deve conter apenas numeros.";
+    }
+
+    if (!REGEX_TEXTO.test(String(beneficiario).trim())) {
+        return "O beneficiario deve ter de 2 a 120 caracteres.";
+    }
+
+    if (!REGIONAIS.has(String(regional))) {
+        return "Informe uma regional valida.";
     }
 
     if (!REGEX_ASSUNTO.test(String(assunto).trim())) {
-        return "O assunto deve ter de 3 a 120 caracteres e não pode conter símbolos especiais.";
+        return "O assunto deve ter de 3 a 120 caracteres e nao pode conter simbolos especiais.";
     }
 
     if (!dataValida(String(data_vencimento))) {
-        return "Informe uma data de vencimento válida.";
+        return "Informe uma data de vencimento valida.";
     }
 
     return null;
@@ -45,9 +62,19 @@ function validarId(id) {
 
 async function criarDemanda(req, res) {
     try {
-        const { numero_demanda, assunto, data_vencimento } = req.body;
+        const {
+            numero_demanda,
+            beneficiario,
+            regional,
+            assunto,
+            data_vencimento,
+            concluida
+        } = req.body;
+
         const erroValidacao = validarDemanda({
             numero_demanda,
+            beneficiario,
+            regional,
             assunto,
             data_vencimento
         });
@@ -58,8 +85,11 @@ async function criarDemanda(req, res) {
 
         const novaDemanda = await demandaModel.criarDemanda(
             String(numero_demanda).trim(),
+            String(beneficiario).trim(),
+            String(regional),
             String(assunto).trim(),
-            data_vencimento
+            data_vencimento,
+            Boolean(concluida)
         );
 
         return res.status(201).json({
@@ -87,16 +117,16 @@ async function excluirDemanda(req, res) {
         const { id } = req.params;
 
         if (!validarId(id)) {
-            return res.status(400).json({ mensagem: "ID inválido." });
+            return res.status(400).json({ mensagem: "ID invalido." });
         }
 
         const demanda = await demandaModel.excluirDemanda(id);
 
         if (!demanda) {
-            return res.status(404).json({ mensagem: "Demanda não encontrada." });
+            return res.status(404).json({ mensagem: "Demanda nao encontrada." });
         }
 
-        return res.status(200).json({ mensagem: "Demanda excluída com sucesso." });
+        return res.status(200).json({ mensagem: "Demanda excluida com sucesso." });
     } catch (erro) {
         console.error("Erro ao excluir demanda:", erro);
         return res.status(500).json({ mensagem: "Erro ao excluir demanda." });
@@ -108,12 +138,22 @@ async function atualizarDemanda(req, res) {
         const { id } = req.params;
 
         if (!validarId(id)) {
-            return res.status(400).json({ mensagem: "ID inválido." });
+            return res.status(400).json({ mensagem: "ID invalido." });
         }
 
-        const { numero_demanda, assunto, data_vencimento } = req.body;
+        const {
+            numero_demanda,
+            beneficiario,
+            regional,
+            assunto,
+            data_vencimento,
+            concluida
+        } = req.body;
+
         const erroValidacao = validarDemanda({
             numero_demanda,
+            beneficiario,
+            regional,
             assunto,
             data_vencimento
         });
@@ -125,12 +165,15 @@ async function atualizarDemanda(req, res) {
         const demanda = await demandaModel.atualizarDemanda(
             id,
             String(numero_demanda).trim(),
+            String(beneficiario).trim(),
+            String(regional),
             String(assunto).trim(),
-            data_vencimento
+            data_vencimento,
+            Boolean(concluida)
         );
 
         if (!demanda) {
-            return res.status(404).json({ mensagem: "Demanda não encontrada." });
+            return res.status(404).json({ mensagem: "Demanda nao encontrada." });
         }
 
         return res.status(200).json({

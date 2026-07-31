@@ -12,29 +12,38 @@ async function garantirBanco() {
     bancoInicializado = true;
 }
 
-async function criarDemanda(numero_demanda, assunto, data_vencimento) {
+async function criarDemanda(numero_demanda, beneficiario, regional, assunto, data_vencimento, concluida = false) {
     await garantirBanco();
 
     const sql = `
         INSERT INTO demandas
         (
             numero_demanda,
+            beneficiario,
+            regional,
             assunto,
-            data_vencimento
+            data_vencimento,
+            concluida
         )
         VALUES
-        ($1, $2, $3)
+        ($1, $2, $3, $4, $5, $6)
         RETURNING
             id,
             numero_demanda,
+            beneficiario,
+            regional,
             assunto,
-            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento;
+            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento,
+            concluida;
     `;
 
     const resultado = await db.query(sql, [
         numero_demanda,
+        beneficiario,
+        regional,
         assunto,
-        data_vencimento
+        data_vencimento,
+        concluida
     ]);
 
     return resultado.rows[0];
@@ -47,8 +56,11 @@ async function listarDemandas() {
         SELECT
             id,
             numero_demanda,
+            beneficiario,
+            regional,
             assunto,
-            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento
+            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento,
+            concluida
         FROM demandas
         ORDER BY data_vencimento ASC, id ASC;
     `;
@@ -72,27 +84,36 @@ async function excluirDemanda(id) {
     return resultado.rows[0];
 }
 
-async function atualizarDemanda(id, numero_demanda, assunto, data_vencimento) {
+async function atualizarDemanda(id, numero_demanda, beneficiario, regional, assunto, data_vencimento, concluida = false) {
     await garantirBanco();
 
     const sql = `
         UPDATE demandas
         SET
             numero_demanda = $1,
-            assunto = $2,
-            data_vencimento = $3
-        WHERE id = $4
+            beneficiario = $2,
+            regional = $3,
+            assunto = $4,
+            data_vencimento = $5,
+            concluida = $6
+        WHERE id = $7
         RETURNING
             id,
             numero_demanda,
+            beneficiario,
+            regional,
             assunto,
-            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento;
+            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento,
+            concluida;
     `;
 
     const resultado = await db.query(sql, [
         numero_demanda,
+        beneficiario,
+        regional,
         assunto,
         data_vencimento,
+        concluida,
         id
     ]);
 
@@ -106,12 +127,16 @@ async function buscarDemandasVencendoAmanha() {
         SELECT
             id,
             numero_demanda,
+            beneficiario,
+            regional,
             assunto,
-            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento
+            TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento,
+            concluida
         FROM demandas
         WHERE data_vencimento = (
             (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::date + 1
         )
+        AND concluida = false
         ORDER BY data_vencimento ASC, id ASC;
     `;
 

@@ -1,13 +1,19 @@
+require("dotenv").config({ quiet: true });
+
 const express = require("express");
 const os = require("os");
 const path = require("path");
+
+const demandaRoutes = require("./routes/demandaRoutes");
 
 const app = express();
 const isDev = process.env.npm_lifecycle_event === "dev";
 const PORT = isDev ? 4000 : process.env.PORT || 4000;
 const publicPath = path.join(__dirname, "public");
 
+app.use(express.json());
 app.use(express.static(publicPath));
+app.use("/demandas", demandaRoutes);
 
 app.use((req, res) => {
     res.sendFile(path.join(publicPath, "index.html"));

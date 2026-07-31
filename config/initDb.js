@@ -10,8 +10,11 @@ async function inicializarBanco() {
         CREATE TABLE IF NOT EXISTS demandas (
             id SERIAL PRIMARY KEY,
             numero_demanda VARCHAR(20),
+            beneficiario VARCHAR(120),
+            regional VARCHAR(40),
             assunto VARCHAR(120),
             data_vencimento DATE,
+            concluida BOOLEAN DEFAULT false,
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     `);
@@ -28,7 +31,22 @@ async function inicializarBanco() {
 
     await db.query(`
         ALTER TABLE demandas
+        ADD COLUMN IF NOT EXISTS beneficiario VARCHAR(120);
+    `);
+
+    await db.query(`
+        ALTER TABLE demandas
+        ADD COLUMN IF NOT EXISTS regional VARCHAR(40);
+    `);
+
+    await db.query(`
+        ALTER TABLE demandas
         ADD COLUMN IF NOT EXISTS data_vencimento DATE;
+    `);
+
+    await db.query(`
+        ALTER TABLE demandas
+        ADD COLUMN IF NOT EXISTS concluida BOOLEAN DEFAULT false;
     `);
 
     await db.query(`
