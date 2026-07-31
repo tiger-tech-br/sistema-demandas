@@ -1,5 +1,6 @@
 const STORAGE_KEY = "sistema-demandas";
 const MIGRATION_KEY = "sistema-demandas-migrado-para-banco";
+const API_PUBLICA = "https://sistema-demandas-aw2w.onrender.com";
 
 const form = document.getElementById("formDemanda");
 const listaDemandas = document.getElementById("listaDemandas");
@@ -14,7 +15,29 @@ const filtroConclusao = document.getElementById("filtroConclusao");
 
 let demandasCache = [];
 
-if ("serviceWorker" in navigator) {
+function estaNoAppAndroid() {
+    return Boolean(window.Capacitor) || window.location.protocol === "capacitor:";
+}
+
+const API_BASE = estaNoAppAndroid() ? API_PUBLICA : "";
+
+async function limparCacheDoAppAndroid() {
+    if (!estaNoAppAndroid()) {
+        return;
+    }
+
+    if ("serviceWorker" in navigator) {
+        const registros = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registros.map((registro) => registro.unregister()));
+    }
+
+    if ("caches" in window) {
+        const nomes = await caches.keys();
+        await Promise.all(nomes.map((nome) => caches.delete(nome)));
+    }
+}
+
+if ("serviceWorker" in navigator && !estaNoAppAndroid()) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("/service-worker.js").catch((erro) => {
             console.error("Erro ao registrar o service worker:", erro);
@@ -23,7 +46,7 @@ if ("serviceWorker" in navigator) {
 }
 
 async function apiJson(url, opcoes = {}) {
-    const resposta = await fetch(url, {
+    const resposta = await fetch(`${API_BASE}${url}`, {
         headers: {
             "Content-Type": "application/json",
             ...(opcoes.headers || {})
@@ -224,6 +247,7 @@ async function carregarDemandasDoBanco() {
         </tr>
     `;
 
+    await limparCacheDoAppAndroid();
     await migrarLocalStorageParaBanco();
 
     demandasCache = await apiJson("/demandas");
