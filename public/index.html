@@ -3,91 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#2563eb">
+    <meta name="theme-color" content="#0f62fe">
 
     <title>Sistema de Demandas</title>
 
     <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <main class="container">
-        <header>
+    <main class="app">
+        <header class="topo">
+            <img src="icons/icon-192.png" alt="" class="app-icon">
             <h1>Sistema de Demandas</h1>
-            <p class="subtitulo">Controle de demandas e lembretes automáticos.</p>
         </header>
 
-        <section class="cadastro">
-            <h2>Nova Demanda</h2>
+        <section class="painel" aria-labelledby="titulo-cadastro">
+            <h2 id="titulo-cadastro">Nova Demanda</h2>
 
-            <form id="formDemanda" autocomplete="off" novalidate>
-                <div class="campo">
-                    <label for="numero">N° de Demanda</label>
-                    <input
-                        type="text"
-                        id="numero"
-                        name="numero"
-                        inputmode="numeric"
-                        pattern="[0-9]+"
-                        maxlength="20"
-                        title="Digite apenas números."
-                        required
-                    >
-                </div>
+            <form id="formDemanda" autocomplete="off">
+                <label>
+                    N° de Demanda
+                    <input type="text" id="numero" required>
+                </label>
 
-                <div class="campo">
-                    <label for="assunto">Assunto</label>
-                    <input
-                        type="text"
-                        id="assunto"
-                        name="assunto"
-                        minlength="3"
-                        maxlength="120"
-                        pattern="[A-Za-zÀ-ÿ0-9\s.,;:!?()/-]{3,120}"
-                        title="Digite de 3 a 120 caracteres, sem símbolos especiais."
-                        required
-                    >
-                </div>
+                <label>
+                    Nome do Beneficiário
+                    <input type="text" id="beneficiario" required>
+                </label>
 
-                <div class="campo">
-                    <label for="vencimento">Data de Vencimento</label>
-                    <input
-                        type="date"
-                        id="vencimento"
-                        name="vencimento"
-                        required
-                    >
-                </div>
+                <label>
+                    Regional
+                    <select id="regional" required>
+                        <option value="">Selecione</option>
+                        <option value="ABC">ABC</option>
+                        <option value="Campinas">Campinas</option>
+                        <option value="Sorocaba">Sorocaba</option>
+                        <option value="Baixada Santista">Baixada Santista</option>
+                        <option value="Americana">Americana</option>
+                        <option value="Nacional">Nacional</option>
+                    </select>
+                </label>
 
-                <button id="btnSalvar" type="submit">Cadastrar Demanda</button>
+                <label>
+                    Assunto
+                    <input type="text" id="assunto" required>
+                </label>
+
+                <label>
+                    Vencimento
+                    <input type="date" id="vencimento" required>
+                </label>
+
+                <button type="submit">Cadastrar</button>
             </form>
         </section>
 
-        <section class="lista">
-            <h2>Demandas Cadastradas</h2>
+        <section class="painel" aria-labelledby="titulo-lista">
+            <h2 id="titulo-lista">Demandas</h2>
 
-            <table>
+            <div class="filtros">
+                <label>
+                    Pesquisar
+                    <input type="search" id="pesquisa" placeholder="Nome do beneficiário">
+                </label>
+
+                <label>
+                    Regional
+                    <select id="filtroRegional">
+                        <option value="">Todas</option>
+                        <option value="ABC">ABC</option>
+                        <option value="Campinas">Campinas</option>
+                        <option value="Sorocaba">Sorocaba</option>
+                        <option value="Baixada Santista">Baixada Santista</option>
+                        <option value="Americana">Americana</option>
+                        <option value="Nacional">Nacional</option>
+                    </select>
+                </label>
+
+                <label>
+                    Status
+                    <select id="filtroStatus">
+                        <option value="">Todos</option>
+                        <option value="Em andamento">Em andamento</option>
+                        <option value="Próxima de vencer">Próxima de vencer</option>
+                        <option value="Concluída">Concluída</option>
+                    </select>
+                </label>
+
+                <label>
+                    Conclusão
+                    <select id="filtroConclusao">
+                        <option value="">Todas</option>
+                        <option value="Pendente">Pendente</option>
+                        <option value="Concluída">Concluída</option>
+                    </select>
+                </label>
+            </div>
+
+            <table class="tabela-demandas">
                 <thead>
                     <tr>
-                        <th>N°</th>
+                        <th>N° de Demanda</th>
+                        <th>Nome do Beneficiário</th>
+                        <th>Regional</th>
                         <th>Assunto</th>
-                        <th>Vencimento</th>
-                        <th>Ações</th>
+                        <th>Conclusão</th>
+                        <th>Data da Demanda</th>
+                        <th>Status</th>
+                        <th></th>
                     </tr>
                 </thead>
-                <tbody id="tabelaDemandas"></tbody>
+                <tbody id="listaDemandas"></tbody>
             </table>
         </section>
     </main>
 
-    <audio id="alarme" preload="auto">
-        <source src="audio/alarme.mp3" type="audio/mpeg">
-    </audio>
+    <div class="popup" id="popup" hidden>
+        <div class="popup-caixa" role="dialog" aria-modal="true" aria-labelledby="popupTitulo">
+            <h2 id="popupTitulo">Pendente</h2>
+            <p id="popupMensagem"></p>
+            <button type="button" id="fecharPopup">OK</button>
+        </div>
+    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/alarmes.js"></script>
     <script src="js/script.js"></script>
 </body>
 </html>

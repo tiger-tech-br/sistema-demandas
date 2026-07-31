@@ -1,4 +1,4 @@
-const CACHE_NAME = "sistema-demandas-v8";
+const CACHE_NAME = "sistema-demandas-v7";
 
 const arquivos = [
     "/",

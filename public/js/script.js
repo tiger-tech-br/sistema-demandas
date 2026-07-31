@@ -1,229 +1,220 @@
+const STORAGE_KEY = "sistema-demandas";
+
 const form = document.getElementById("formDemanda");
-const tabelaDemandas = document.getElementById("tabelaDemandas");
-const campoNumero = document.getElementById("numero");
-const campoAssunto = document.getElementById("assunto");
-const campoVencimento = document.getElementById("vencimento");
+const listaDemandas = document.getElementById("listaDemandas");
+const popup = document.getElementById("popup");
+const popupMensagem = document.getElementById("popupMensagem");
+const fecharPopup = document.getElementById("fecharPopup");
+const pesquisa = document.getElementById("pesquisa");
+const filtroRegional = document.getElementById("filtroRegional");
+const filtroStatus = document.getElementById("filtroStatus");
+const filtroConclusao = document.getElementById("filtroConclusao");
 
-let demandaEditando = null;
-
-const REGEX_NUMERO_DEMANDA = /^[0-9]{1,20}$/;
-const REGEX_ASSUNTO = /^[A-Za-zÀ-ÿ0-9\s.,;:!?()/-]{3,120}$/;
-const REGEX_DATA = /^\d{4}-\d{2}-\d{2}$/;
-
-document.addEventListener("DOMContentLoaded", iniciarSistema);
-form.addEventListener("submit", salvarDemanda);
-
-campoNumero.addEventListener("input", () => {
-    campoNumero.value = campoNumero.value.replace(/\D/g, "").slice(0, 20);
-});
-
-async function iniciarSistema() {
-    await carregarDemandas();
-    await verificarDemandasVencendoAmanha();
+function carregarDemandas() {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 }
 
-function validarDataReal(data) {
-    if (!REGEX_DATA.test(data)) {
-        return false;
-    }
-
-    const [ano, mes, dia] = data.split("-").map(Number);
-    const dataConvertida = new Date(ano, mes - 1, dia);
-
-    return !Number.isNaN(dataConvertida.getTime()) &&
-        dataConvertida.getFullYear() === ano &&
-        dataConvertida.getMonth() === mes - 1 &&
-        dataConvertida.getDate() === dia;
+function salvarDemandas(demandas) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(demandas));
 }
 
-function validarFormulario(dados) {
-    if (!REGEX_NUMERO_DEMANDA.test(dados.numero_demanda)) {
-        alertaErro("O campo N° de Demanda deve conter apenas números.");
-        campoNumero.focus();
-        return false;
-    }
-
-    if (!REGEX_ASSUNTO.test(dados.assunto)) {
-        alertaErro("O assunto deve ter de 3 a 120 caracteres e não pode conter símbolos especiais.");
-        campoAssunto.focus();
-        return false;
-    }
-
-    if (!validarDataReal(dados.data_vencimento)) {
-        alertaErro("Informe uma data de vencimento válida.");
-        campoVencimento.focus();
-        return false;
-    }
-
-    return true;
+function criarId() {
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-async function salvarDemanda(event) {
-    event.preventDefault();
+function hojeIso() {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    return hoje.toISOString().slice(0, 10);
+}
 
-    const dados = {
-        numero_demanda: campoNumero.value.trim(),
-        assunto: campoAssunto.value.trim(),
-        data_vencimento: campoVencimento.value
+function amanhaIso() {
+    const amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    amanha.setHours(0, 0, 0, 0);
+    return amanha.toISOString().slice(0, 10);
+}
+
+function diasAteVencimento(dataIso) {
+    const hoje = new Date();
+    const vencimento = new Date(`${dataIso}T00:00:00`);
+
+    hoje.setHours(0, 0, 0, 0);
+
+    return Math.ceil((vencimento - hoje) / 86400000);
+}
+
+function obterStatus(demanda) {
+    if (demanda.concluida) {
+        return {
+            texto: "Concluída",
+            classe: "status-concluido"
+        };
+    }
+
+    const dias = diasAteVencimento(demanda.vencimento);
+
+    if (dias >= 0 && dias <= 3) {
+        return {
+            texto: "Próxima de vencer",
+            classe: "status-vencendo"
+        };
+    }
+
+    return {
+        texto: "Em andamento",
+        classe: "status-andamento"
     };
-
-    if (!validarFormulario(dados)) {
-        return;
-    }
-
-    try {
-        const resposta = demandaEditando
-            ? await apiPut(`/demandas/${demandaEditando}`, dados)
-            : await apiPost("/demandas", dados);
-
-        const resultado = await resposta.json();
-
-        if (!resposta.ok) {
-            alertaErro(resultado.mensagem);
-            return;
-        }
-
-        alertaSucesso(resultado.mensagem);
-        limparFormulario();
-        await carregarDemandas();
-    } catch (erro) {
-        console.error(erro);
-        alertaErro("Erro ao conectar ao servidor.");
-    }
 }
 
-async function carregarDemandas() {
-    try {
-        const resposta = await apiGet("/demandas");
-
-        if (!resposta.ok) {
-            throw new Error();
-        }
-
-        const demandas = await resposta.json();
-
-        tabelaDemandas.textContent = "";
-        demandas.forEach(criarLinhaTabela);
-    } catch (erro) {
-        console.error(erro);
-        alertaErro("Não foi possível carregar as demandas.");
+function formatarData(dataIso) {
+    if (!dataIso) {
+        return "";
     }
+
+    return new Date(`${dataIso}T00:00:00`).toLocaleDateString("pt-BR");
 }
 
-function criarLinhaTabela(demanda) {
-    const linha = document.createElement("tr");
-    const celulaNumero = document.createElement("td");
-    const celulaAssunto = document.createElement("td");
-    const celulaVencimento = document.createElement("td");
-    const celulaAcoes = document.createElement("td");
-    const botaoEditar = document.createElement("button");
-    const botaoExcluir = document.createElement("button");
+function textoSeguro(valor) {
+    return String(valor).replace(/[&<>"']/g, (caractere) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#039;"
+    })[caractere]);
+}
 
-    celulaNumero.textContent = demanda.numero_demanda;
-    celulaAssunto.textContent = demanda.assunto;
-    celulaVencimento.textContent = formatarData(demanda.data_vencimento);
+function normalizarTexto(valor) {
+    return String(valor || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+}
 
-    botaoEditar.type = "button";
-    botaoEditar.className = "btn-editar";
-    botaoEditar.textContent = "Editar";
-    botaoEditar.addEventListener("click", () => {
-        editarDemanda(
-            demanda.id,
-            demanda.numero_demanda,
-            demanda.assunto,
-            demanda.data_vencimento
+function filtrarDemandas(demandas) {
+    const termo = normalizarTexto(pesquisa.value);
+    const regional = filtroRegional.value;
+    const statusSelecionado = filtroStatus.value;
+    const conclusaoSelecionada = filtroConclusao.value;
+
+    return demandas.filter((demanda) => {
+        const status = obterStatus(demanda).texto;
+        const conclusao = demanda.concluida ? "Concluída" : "Pendente";
+        const nomeBeneficiario = normalizarTexto(demanda.beneficiario);
+
+        return (
+            (!termo || nomeBeneficiario.includes(termo)) &&
+            (!regional || demanda.regional === regional) &&
+            (!statusSelecionado || status === statusSelecionado) &&
+            (!conclusaoSelecionada || conclusao === conclusaoSelecionada)
         );
     });
-
-    botaoExcluir.type = "button";
-    botaoExcluir.className = "btn-excluir";
-    botaoExcluir.textContent = "Excluir";
-    botaoExcluir.addEventListener("click", () => {
-        excluirDemanda(demanda.id);
-    });
-
-    celulaAcoes.append(botaoEditar, botaoExcluir);
-    linha.append(celulaNumero, celulaAssunto, celulaVencimento, celulaAcoes);
-    tabelaDemandas.appendChild(linha);
 }
 
-function editarDemanda(id, numero, assunto, vencimento) {
-    demandaEditando = id;
-    campoNumero.value = numero;
-    campoAssunto.value = assunto;
-    campoVencimento.value = vencimento.substring(0, 10);
-    alterarTextoBotao(form.querySelector("button"), "Atualizar Demanda");
-    scrollTopo();
-}
+function renderizarDemandas() {
+    const demandas = filtrarDemandas(carregarDemandas());
 
-async function excluirDemanda(id) {
-    const confirmar = await alertaConfirmacao(
-        "Excluir demanda?",
-        "Essa ação não poderá ser desfeita."
-    );
-
-    if (!confirmar.isConfirmed) {
+    if (demandas.length === 0) {
+        listaDemandas.innerHTML = `
+            <tr>
+                <td class="vazio" colspan="8">Nenhuma demanda encontrada.</td>
+            </tr>
+        `;
         return;
     }
 
-    try {
-        const resposta = await apiDelete(`/demandas/${id}`);
-        const resultado = await resposta.json();
+    listaDemandas.innerHTML = demandas.map((demanda) => {
+        const concluida = demanda.concluida;
+        const conclusao = concluida ? "Concluída" : "Pendente";
+        const classeConclusao = concluida ? "status-concluido" : "status-andamento";
+        const status = obterStatus(demanda);
 
-        if (!resposta.ok) {
-            alertaErro(resultado.mensagem);
-            return;
-        }
+        return `
+            <tr>
+                <td data-label="N° de Demanda">${textoSeguro(demanda.numero)}</td>
+                <td data-label="Nome do Beneficiário">${textoSeguro(demanda.beneficiario)}</td>
+                <td data-label="Regional">${textoSeguro(demanda.regional || "")}</td>
+                <td data-label="Assunto">${textoSeguro(demanda.assunto)}</td>
+                <td data-label="Conclusão" class="${classeConclusao}">${conclusao}</td>
+                <td data-label="Data da Demanda">${formatarData(demanda.vencimento)}</td>
+                <td data-label="Status" class="${status.classe}">${status.texto}</td>
+                <td data-label="Ação">${concluida ? "" : `<button type="button" data-id="${demanda.id}">Concluído</button>`}</td>
+            </tr>
+        `;
+    }).join("");
+}
 
-        alertaSucesso(resultado.mensagem);
-        await carregarDemandas();
-    } catch (erro) {
-        console.error(erro);
-        alertaErro("Erro ao excluir demanda.");
+function abrirPopup(mensagem) {
+    popupMensagem.textContent = mensagem;
+    popup.hidden = false;
+}
+
+function verificarPendencias() {
+    const demandas = carregarDemandas();
+    const vencendoAmanha = demandas.filter((demanda) => (
+        !demanda.concluida && demanda.vencimento === amanhaIso()
+    ));
+
+    if (vencendoAmanha.length === 0) {
+        return;
     }
+
+    const numeros = vencendoAmanha.map((demanda) => demanda.numero).join(", ");
+    abrirPopup(`Demanda pendente com vencimento amanhã: ${numeros}.`);
 }
 
-async function verificarDemandasVencendoAmanha() {
-    try {
-        const resposta = await apiGet("/demandas/vencendo-amanha");
+form.addEventListener("submit", (event) => {
+    event.preventDefault();
 
-        if (!resposta.ok) {
-            return;
-        }
+    const demandas = carregarDemandas();
 
-        const demandas = await resposta.json();
-
-        if (demandas.length === 0) {
-            return;
-        }
-
-        const mensagem = demandas.map((demanda) => (
-            `<b>N°:</b> ${demanda.numero_demanda}<br>` +
-            `<b>Assunto:</b> ${demanda.assunto}<br>` +
-            `<b>Vencimento:</b> ${formatarData(demanda.data_vencimento)}`
-        )).join("<br><br>");
-
-        if (ehNavegador()) {
-            alertaAviso("Demandas vencendo amanhã", mensagem);
-        }
-    } catch (erro) {
-        console.error(erro);
-    }
-}
-
-function limparFormulario() {
-    form.reset();
-    demandaEditando = null;
-    alterarTextoBotao(form.querySelector("button"), "Cadastrar Demanda");
-}
-
-if ("serviceWorker" in navigator) {
-    window.addEventListener("load", async () => {
-        try {
-            await navigator.serviceWorker.register("/service-worker.js");
-            console.log("Service Worker registrado.");
-        } catch (erro) {
-            console.error(erro);
-        }
+    demandas.push({
+        id: criarId(),
+        numero: document.getElementById("numero").value.trim(),
+        beneficiario: document.getElementById("beneficiario").value.trim(),
+        regional: document.getElementById("regional").value,
+        assunto: document.getElementById("assunto").value.trim(),
+        vencimento: document.getElementById("vencimento").value || hojeIso(),
+        concluida: false
     });
-}
+
+    salvarDemandas(demandas);
+    form.reset();
+    renderizarDemandas();
+    verificarPendencias();
+});
+
+listaDemandas.addEventListener("click", (event) => {
+    const botao = event.target.closest("button[data-id]");
+
+    if (!botao) {
+        return;
+    }
+
+    const demandas = carregarDemandas().map((demanda) => {
+        if (demanda.id !== botao.dataset.id) {
+            return demanda;
+        }
+
+        return {
+            ...demanda,
+            concluida: true
+        };
+    });
+
+    salvarDemandas(demandas);
+    renderizarDemandas();
+});
+
+fecharPopup.addEventListener("click", () => {
+    popup.hidden = true;
+});
+
+[pesquisa, filtroRegional, filtroStatus, filtroConclusao].forEach((campo) => {
+    campo.addEventListener("input", renderizarDemandas);
+    campo.addEventListener("change", renderizarDemandas);
+});
+
+renderizarDemandas();
+verificarPendencias();

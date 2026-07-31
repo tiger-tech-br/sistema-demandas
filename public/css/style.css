@@ -1,652 +1,261 @@
-/* ===========================
-   RESET
-=========================== */
-
 * {
-    margin: 0;
-    padding: 0;
     box-sizing: border-box;
 }
 
-:root {
-
-    --cor-primaria: #2563eb;
-    --cor-primaria-hover: #1d4ed8;
-    --cor-sucesso: #16a34a;
-    --cor-perigo: #dc2626;
-
-    --cor-fundo: #f4f6f9;
-    --cor-card: #ffffff;
-
-    --cor-texto: #1f2937;
-    --cor-borda: #d1d5db;
-
-    --sombra: 0 6px 18px rgba(0,0,0,.08);
-
-}
-
-html {
-
-    font-size: 16px;
-    scroll-behavior: smooth;
-
+html,
+body {
+    margin: 0;
+    min-width: 0;
 }
 
 body {
-
+    min-height: 100vh;
     font-family: Arial, Helvetica, sans-serif;
-    background: var(--cor-fundo);
-    color: var(--cor-texto);
-    overflow-x: hidden;
-
+    color: #172033;
+    background: #eef3f8;
 }
 
-/* ===========================
-   CONTAINER
-=========================== */
-
-.container{
-
-    width:min(95%,1100px);
-
-    margin:25px auto;
-
+button,
+input,
+select {
+    font: inherit;
 }
 
-/* ===========================
-   TÍTULOS
-=========================== */
-
-h1{
-
-    text-align:center;
-
-    font-size:2rem;
-
-    margin-bottom:10px;
-
+.app {
+    width: min(100% - 24px, 980px);
+    margin: 0 auto;
+    padding: 20px 0 28px;
 }
 
-.subtitulo{
-
-    text-align:center;
-
-    color:#6b7280;
-
-    margin-bottom:35px;
-
+.topo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
 }
 
-h2{
-
-    margin-bottom:20px;
-
+.app-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    flex: 0 0 auto;
 }
 
-/* ===========================
-   CARDS
-=========================== */
-
-.cadastro,
-.lista{
-
-    background:var(--cor-card);
-
-    border-radius:14px;
-
-    padding:25px;
-
-    box-shadow:var(--sombra);
-
-    margin-bottom:25px;
-
+h1,
+h2 {
+    margin: 0;
+    line-height: 1.2;
 }
 
-/* ===========================
-   FORMULÁRIO
-=========================== */
-
-form{
-
-    display:flex;
-
-    flex-direction:column;
-
-    gap:18px;
-
+h1 {
+    font-size: clamp(1.45rem, 5vw, 2rem);
 }
 
-.campo{
-
-    display:flex;
-
-    flex-direction:column;
-
+h2 {
+    margin-bottom: 16px;
+    font-size: 1.1rem;
 }
 
-label{
-
-    font-weight:bold;
-
-    margin-bottom:8px;
-
+.painel {
+    width: 100%;
+    margin-bottom: 16px;
+    padding: 18px;
+    background: #ffffff;
+    border: 1px solid #dce4ee;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(15, 35, 62, 0.08);
 }
 
-input{
-
-    width:100%;
-
-    padding:14px;
-
-    border:1px solid var(--cor-borda);
-
-    border-radius:10px;
-
-    font-size:16px;
-
-    transition:.3s;
-
+form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
 }
 
-input:focus{
-
-    outline:none;
-
-    border-color:var(--cor-primaria);
-
-    box-shadow:0 0 0 4px rgba(37,99,235,.15);
-
+label {
+    min-width: 0;
+    display: grid;
+    gap: 6px;
+    font-weight: 700;
 }
 
-/* ===========================
-   BOTÕES
-=========================== */
-
-button{
-
-    border:none;
-
-    border-radius:10px;
-
-    padding:14px;
-
-    font-size:16px;
-
-    font-weight:bold;
-
-    cursor:pointer;
-
-    transition:.3s;
-
-    background:var(--cor-primaria);
-
-    color:white;
-
+input,
+select {
+    width: 100%;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid #b8c4d4;
+    border-radius: 6px;
+    color: #172033;
+    background: #ffffff;
 }
 
-button:hover{
-
-    background:var(--cor-primaria-hover);
-
-    transform:translateY(-2px);
-
+input:focus,
+select:focus {
+    outline: 3px solid rgba(15, 98, 254, 0.18);
+    border-color: #0f62fe;
 }
 
-button:active{
-
-    transform:scale(.98);
-
+button {
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 6px;
+    font-weight: 700;
+    color: #ffffff;
+    background: #0f62fe;
+    cursor: pointer;
 }
 
-/* ===========================
-   TABELA
-=========================== */
-
-.lista{
-
-    overflow-x:auto;
-
+button:active {
+    transform: translateY(1px);
 }
 
-table{
-
-    width:100%;
-
-    border-collapse:collapse;
-
+form button {
+    grid-column: 1 / -1;
 }
 
-thead{
+.filtros {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
 
-    background:var(--cor-primaria);
-
-    color:white;
-
+.tabela-demandas {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
 }
 
 th,
-td{
-
-    padding:15px;
-
-    text-align:center;
-
-    border-bottom:1px solid #e5e7eb;
-
-    word-break:normal;
-
-    overflow-wrap:normal;
-
-    hyphens:none;
-
+td {
+    padding: 12px;
+    text-align: left;
+    vertical-align: middle;
+    border-bottom: 1px solid #dce4ee;
+    overflow-wrap: anywhere;
 }
 
-th:nth-child(2),
-td:nth-child(2){
-
-    width:45%;
-
-    text-align:left;
-
+th {
+    font-size: 0.82rem;
+    color: #5b6b80;
 }
 
-tbody tr:hover{
-
-    background:#f9fafb;
-
+td {
+    font-size: 0.94rem;
 }
 
-/* ===========================
-   BOTÕES DA TABELA
-=========================== */
-
-td:last-child{
-
-    white-space:nowrap;
-
+td:last-child,
+th:last-child {
+    width: 132px;
+    text-align: right;
 }
 
-td button{
-
-    width:auto;
-
-    padding:10px 15px;
-
-    margin:3px;
-
+.status-andamento {
+    color: #9a5b00;
 }
 
-td button:first-child{
-
-    background:var(--cor-sucesso);
-
+.status-concluido {
+    color: #147a3d;
 }
 
-td button:first-child:hover{
-
-    background:#15803d;
-
+.status-vencendo {
+    color: #c62828;
 }
 
-td button:last-child{
-
-    background:var(--cor-perigo);
-
+.vazio {
+    padding: 8px 0;
+    color: #5b6b80;
 }
 
-td button:last-child:hover{
-
-    background:#b91c1c;
-
+.popup {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(10, 20, 36, 0.52);
 }
 
-/* ===========================
-   RESPONSIVIDADE
-=========================== */
-
-@media(max-width:768px){
-
-    .container{
-
-        width:95%;
-
-        margin:15px auto;
-
-    }
-
-    h1{
-
-        font-size:1.6rem;
-
-    }
-
-    h2{
-
-        font-size:1.2rem;
-
-    }
-
-    .cadastro,
-    .lista{
-
-        padding:18px;
-
-    }
-
-    input{
-
-        font-size:16px;
-
-    }
-
-    button{
-
-        width:100%;
-
-    }
-
-    thead{
-
-        display:none;
-
-    }
-
-    table,
-    tbody,
-    tr,
-    td{
-
-        display:block;
-
-        width:100%;
-
-    }
-
-    tbody tr{
-
-        background:white;
-
-        margin-bottom:18px;
-
-        border-radius:12px;
-
-        box-shadow:var(--sombra);
-
-        padding:15px;
-
-    }
-
-    td{
-
-        display:flex;
-
-        justify-content:flex-start;
-
-        align-items:flex-start;
-
-        gap:12px;
-
-        border:none;
-
-        padding:10px 0;
-
-        text-align:left;
-
-        line-height:1.35;
-
-    }
-
-    td::before{
-
-        flex:0 0 100px;
-
-    }
-
-    td:nth-child(2){
-
-        width:100%;
-
-        white-space:normal;
-
-        word-break:normal;
-
-        overflow-wrap:normal;
-
-    }
-
-    td:nth-child(1)::before{
-
-        content:"Número";
-
-        font-weight:bold;
-
-    }
-
-    td:nth-child(2)::before{
-
-        content:"Assunto";
-
-        font-weight:bold;
-
-    }
-
-    td:nth-child(3)::before{
-
-        content:"Vencimento";
-
-        font-weight:bold;
-
-    }
-
-    td:nth-child(4){
-
-        display:block;
-
-        padding-top:15px;
-
-    }
-
-    td:nth-child(4) button{
-
-        width:100%;
-
-        margin-top:10px;
-
-    }
-
+.popup[hidden] {
+    display: none;
 }
 
-/* ===================================
-   RESPONSIVO
-=================================== */
+.popup-caixa {
+    width: min(100%, 380px);
+    padding: 20px;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.22);
+}
 
-@media (max-width:768px){
+.popup-caixa p {
+    margin: 0 0 18px;
+    line-height: 1.45;
+}
 
-    body{
+.popup-caixa button {
+    width: 100%;
+}
 
-        overflow-x:hidden;
-
+@media (max-width: 720px) {
+    .app {
+        width: min(100% - 16px, 980px);
+        padding-top: 12px;
     }
 
-    .container{
-
-        width:94%;
-
-        margin:20px auto;
-
+    .painel {
+        padding: 14px;
     }
 
-    h1{
-
-        font-size:2rem;
-
-        margin-bottom:5px;
-
+    form,
+    .filtros {
+        grid-template-columns: 1fr;
     }
 
-    .subtitulo{
-
-        font-size:.95rem;
-
-        margin-bottom:20px;
-
+    .tabela-demandas,
+    .tabela-demandas thead,
+    .tabela-demandas tbody,
+    .tabela-demandas tr,
+    .tabela-demandas th,
+    .tabela-demandas td {
+        display: block;
+        width: 100%;
     }
 
-    .cadastro,
-    .lista{
-
-        padding:18px;
-
-        border-radius:16px;
-
+    .tabela-demandas thead {
+        display: none;
     }
 
-    input{
-
-        width:100%;
-
-        font-size:16px;
-
-        padding:14px;
-
+    .tabela-demandas tr {
+        margin-bottom: 12px;
+        padding: 12px;
+        border: 1px solid #dce4ee;
+        border-radius: 8px;
+        background: #fbfdff;
     }
 
-    #btnSalvar{
-
-        width:100%;
-
-        margin-top:10px;
-
+    .tabela-demandas td {
+        padding: 8px 0;
+        border: 0;
     }
 
-    table,
-    tbody{
-
-        width:100%;
-
-        display:block;
-
+    .tabela-demandas td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 4px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: #5b6b80;
     }
 
-    thead{
-
-        display:none;
-
+    .tabela-demandas td:last-child {
+        text-align: left;
     }
 
-    tr{
-
-        display:flex;
-
-        flex-direction:column;
-
-        gap:12px;
-
-        background:#fff;
-
-        padding:18px;
-
-        border-radius:14px;
-
-        margin-bottom:18px;
-
-        box-shadow:0 5px 15px rgba(0,0,0,.08);
-
+    .tabela-demandas button {
+        width: 100%;
     }
-
-    td{
-
-        display:flex;
-
-        justify-content:flex-start;
-
-        align-items:flex-start;
-
-        gap:12px;
-
-        padding:0;
-
-        border:none;
-
-        font-size:15px;
-
-        text-align:left;
-
-        line-height:1.35;
-
-    }
-
-    td::before{
-
-        font-weight:bold;
-
-        color:#374151;
-
-        flex:0 0 100px;
-
-    }
-
-    td:nth-child(2){
-
-        width:100%;
-
-        white-space:normal;
-
-        word-break:normal;
-
-        overflow-wrap:normal;
-
-    }
-
-    td:nth-child(1)::before{
-
-        content:"Número";
-
-    }
-
-    td:nth-child(2)::before{
-
-        content:"Assunto";
-
-    }
-
-    td:nth-child(3)::before{
-
-        content:"Vencimento";
-
-    }
-
-    td:nth-child(4){
-
-        display:flex;
-
-        flex-direction:column;
-
-        gap:10px;
-
-        margin-top:10px;
-
-    }
-
-    td:nth-child(4)::before{
-
-        content:"";
-
-        display:none;
-
-    }
-
-    .btn-editar,
-    .btn-excluir{
-
-        width:100%;
-
-        padding:14px;
-
-        border-radius:10px;
-
-        font-size:15px;
-
-    }
-
 }
