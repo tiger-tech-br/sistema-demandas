@@ -7,6 +7,7 @@ const popup = document.getElementById("popup");
 const popupMensagem = document.getElementById("popupMensagem");
 const fecharPopup = document.getElementById("fecharPopup");
 const pesquisa = document.getElementById("pesquisa");
+const pesquisaAssunto = document.getElementById("pesquisaAssunto");
 const filtroRegional = document.getElementById("filtroRegional");
 const filtroStatus = document.getElementById("filtroStatus");
 const filtroConclusao = document.getElementById("filtroConclusao");
@@ -144,6 +145,7 @@ async function migrarLocalStorageParaBanco() {
 
 function filtrarDemandas(demandas) {
     const termo = normalizarTexto(pesquisa.value);
+    const termoAssunto = normalizarTexto(pesquisaAssunto.value);
     const regional = filtroRegional.value;
     const statusSelecionado = normalizarTexto(filtroStatus.value);
     const conclusaoSelecionada = normalizarTexto(filtroConclusao.value);
@@ -152,9 +154,11 @@ function filtrarDemandas(demandas) {
         const status = normalizarTexto(obterStatus(demanda).texto);
         const conclusao = normalizarTexto(demanda.concluida ? "Concluida" : "Pendente");
         const nomeBeneficiario = normalizarTexto(demanda.beneficiario);
+        const assunto = normalizarTexto(demanda.assunto);
 
         return (
             (!termo || nomeBeneficiario.includes(termo)) &&
+            (!termoAssunto || assunto.includes(termoAssunto)) &&
             (!regional || demanda.regional === regional) &&
             (!statusSelecionado || status === statusSelecionado) &&
             (!conclusaoSelecionada || conclusao === conclusaoSelecionada)
@@ -291,7 +295,7 @@ fecharPopup.addEventListener("click", () => {
     popup.hidden = true;
 });
 
-[pesquisa, filtroRegional, filtroStatus, filtroConclusao].forEach((campo) => {
+[pesquisa, pesquisaAssunto, filtroRegional, filtroStatus, filtroConclusao].forEach((campo) => {
     campo.addEventListener("input", renderizarDemandas);
     campo.addEventListener("change", renderizarDemandas);
 });
