@@ -1,4 +1,4 @@
-package com.demandas.app;
+package com.viviani.sistemademandas;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

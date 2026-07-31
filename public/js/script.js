@@ -10,6 +10,14 @@ const filtroRegional = document.getElementById("filtroRegional");
 const filtroStatus = document.getElementById("filtroStatus");
 const filtroConclusao = document.getElementById("filtroConclusao");
 
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js").catch((erro) => {
+            console.error("Erro ao registrar o service worker:", erro);
+        });
+    });
+}
+
 function carregarDemandas() {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 }

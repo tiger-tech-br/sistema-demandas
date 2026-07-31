@@ -1,4 +1,4 @@
-package com.demandas.app;
+package com.viviani.sistemademandas;
 
 import android.app.Notification;
 import android.app.NotificationChannel;

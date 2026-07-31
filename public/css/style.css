@@ -122,9 +122,15 @@ form button {
     margin-bottom: 14px;
 }
 
+.tabela-area {
+    width: 100%;
+    overflow-x: auto;
+}
+
 .tabela-demandas {
     width: 100%;
-    table-layout: fixed;
+    min-width: 880px;
+    table-layout: auto;
     border-collapse: collapse;
 }
 
@@ -134,12 +140,14 @@ td {
     text-align: left;
     vertical-align: middle;
     border-bottom: 1px solid #dce4ee;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+    word-break: normal;
 }
 
 th {
     font-size: 0.82rem;
     color: #5b6b80;
+    white-space: nowrap;
 }
 
 td {
@@ -213,6 +221,14 @@ th:last-child {
     form,
     .filtros {
         grid-template-columns: 1fr;
+    }
+
+    .tabela-area {
+        overflow: visible;
+    }
+
+    .tabela-demandas {
+        min-width: 0;
     }
 
     .tabela-demandas,

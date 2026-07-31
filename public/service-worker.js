@@ -1,4 +1,4 @@
-const CACHE_NAME = "sistema-demandas-v7";
+const CACHE_NAME = "sistema-demandas-v8";
 
 const arquivos = [
     "/",
@@ -48,4 +48,16 @@ self.addEventListener("activate", (event) => {
 
     );
 
+});
+
+self.addEventListener("fetch", (event) => {
+    if (event.request.method !== "GET") {
+        return;
+    }
+
+    event.respondWith(
+        caches.match(event.request).then((respostaCache) => {
+            return respostaCache || fetch(event.request);
+        })
+    );
 });
