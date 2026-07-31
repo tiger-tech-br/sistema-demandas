@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.webkit.WebView;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -17,8 +18,17 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        limparCacheDeArquivos();
         solicitarPermissaoNotificacao();
         AlarmScheduler.schedule(this);
+    }
+
+    private void limparCacheDeArquivos() {
+        WebView webView = getBridge().getWebView();
+
+        if (webView != null) {
+            webView.clearCache(true);
+        }
     }
 
     private void solicitarPermissaoNotificacao() {
