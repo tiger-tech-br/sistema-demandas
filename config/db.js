@@ -9,6 +9,7 @@ const hasSeparateConfig = [
 ].every(Boolean);
 
 const pool = new Pool({
+    connectionTimeoutMillis: 10000,
     ...(connectionString
         ? { connectionString }
         : {
@@ -18,11 +19,15 @@ const pool = new Pool({
             password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME,
         }),
-    ...(connectionString
+    ...(connectionString && process.env.DATABASE_SSL !== "false"
         ? { ssl: { rejectUnauthorized: false } }
         : {}),
 });
 
 pool.hasConfig = Boolean(connectionString || hasSeparateConfig);
+
+pool.on("error", (erro) => {
+    console.error("Conexao inativa do banco encerrada:", erro.code || "erro de conexao");
+});
 
 module.exports = pool;

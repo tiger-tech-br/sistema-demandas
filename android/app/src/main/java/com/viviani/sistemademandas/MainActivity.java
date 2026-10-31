@@ -2,6 +2,7 @@ package com.viviani.sistemademandas;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.webkit.WebView;
@@ -17,16 +18,23 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        registerPlugin(SessaoPlugin.class);
         super.onCreate(savedInstanceState);
         limparCacheDeArquivos();
         solicitarPermissaoNotificacao();
-        AlarmScheduler.schedule(this);
+
+        if (SessaoStore.obter(this) != null) {
+            AlarmScheduler.schedule(this);
+        } else {
+            AlarmScheduler.cancel(this);
+        }
     }
 
     private void limparCacheDeArquivos() {
-        WebView webView = getBridge().getWebView();
+        WebView webView = getBridge() == null ? null : getBridge().getWebView();
 
         if (webView != null) {
+            webView.setBackgroundColor(Color.WHITE);
             webView.clearCache(true);
         }
     }

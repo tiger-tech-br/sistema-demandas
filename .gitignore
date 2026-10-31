@@ -6,3 +6,11 @@ android/build/
 android/app/build/
 
 *.log
+web/dist/
+*.tsbuildinfo
+.env.local
+.env.*.local
+backups/
+*.apk
+*.jks
+*.keystore

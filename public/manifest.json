@@ -4,8 +4,8 @@
     "description": "Sistema de Demandas",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#f4f6f9",
-    "theme_color": "#2563eb",
+    "background_color": "#ffffff",
+    "theme_color": "#00979c",
     "orientation": "portrait",
     "icons": [
         {

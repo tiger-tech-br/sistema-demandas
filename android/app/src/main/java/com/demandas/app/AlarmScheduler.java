@@ -11,6 +11,11 @@ public class AlarmScheduler {
 
     public static void schedule(Context context) {
 
+        if (SessaoStore.obter(context) == null) {
+            cancel(context);
+            return;
+        }
+
         AlarmManager alarmManager =
                 (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
 
@@ -46,6 +51,23 @@ public class AlarmScheduler {
                 pendingIntent
         );
 
+    }
+
+    public static void cancel(Context context) {
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                context,
+                0,
+                new Intent(context, AlarmReceiver.class),
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        if (pendingIntent != null) {
+            if (alarmManager != null) {
+                alarmManager.cancel(pendingIntent);
+            }
+            pendingIntent.cancel();
+        }
     }
 
 }

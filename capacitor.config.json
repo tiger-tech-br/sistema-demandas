@@ -1,5 +1,6 @@
 {
   "appId": "com.viviani.sistemademandas",
   "appName": "Sistema de Demandas",
-  "webDir": "public"
+  "webDir": "web/dist",
+  "backgroundColor": "#ffffff"
 }

@@ -12,19 +12,25 @@ public class AlarmReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
 
+        if (SessaoStore.obter(context) == null) {
+            AlarmScheduler.cancel(context);
+            return;
+        }
+
         Intent serviceIntent = new Intent(context, AlarmService.class);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
-            ContextCompat.startForegroundService(
-                    context,
-                    serviceIntent
-            );
+                ContextCompat.startForegroundService(context, serviceIntent);
 
-        } else {
+            } else {
 
-            context.startService(serviceIntent);
+                context.startService(serviceIntent);
 
+            }
+        } catch (IllegalStateException | SecurityException erro) {
+            // O sistema pode impedir serviços em segundo plano; a consulta ocorre ao abrir o app.
         }
 
     }

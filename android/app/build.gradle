@@ -7,8 +7,8 @@ android {
         applicationId "com.viviani.sistemademandas"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.2"
+        versionCode 4
+        versionName "1.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -25,8 +25,13 @@ android {
 }
 
 tasks.register('copyCurrentWebAssets', Copy) {
-    from "${rootProject.projectDir}/../public"
+    from "${rootProject.projectDir}/../web/dist"
     into "${projectDir}/src/main/assets/public"
+    doFirst {
+        if (!file("${rootProject.projectDir}/../web/dist/index.html").isFile()) {
+            throw new GradleException("A interface web ainda nao foi compilada. Execute npm run build na raiz antes de gerar o APK.")
+        }
+    }
 }
 
 afterEvaluate {

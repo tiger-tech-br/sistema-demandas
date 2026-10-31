@@ -28,7 +28,7 @@ function dataValida(data) {
         dataConvertida.getDate() === dia;
 }
 
-function validarDemanda({ numero_demanda, beneficiario, regional, assunto, data_vencimento }) {
+function validarDemanda({ numero_demanda, beneficiario, regional, assunto, data_vencimento, concluida }) {
     if (!numero_demanda || !beneficiario || !regional || !assunto || !data_vencimento) {
         return "Preencha todos os campos.";
     }
@@ -53,14 +53,18 @@ function validarDemanda({ numero_demanda, beneficiario, regional, assunto, data_
         return "Informe uma data de vencimento valida.";
     }
 
+    if (concluida !== undefined && typeof concluida !== "boolean") {
+        return "Informe a conclusao como verdadeiro ou falso.";
+    }
+
     return null;
 }
 
 function validarId(id) {
-    return REGEX_ID.test(String(id));
+    return REGEX_ID.test(String(id)) && Number.isSafeInteger(Number(id)) && Number(id) > 0 && Number(id) <= 2147483647;
 }
 
-async function criarDemanda(req, res) {
+async function criarDemanda(req, res, next) {
     try {
         const {
             numero_demanda,
@@ -69,14 +73,15 @@ async function criarDemanda(req, res) {
             assunto,
             data_vencimento,
             concluida
-        } = req.body;
+        } = req.body || {};
 
         const erroValidacao = validarDemanda({
             numero_demanda,
             beneficiario,
             regional,
             assunto,
-            data_vencimento
+            data_vencimento,
+            concluida
         });
 
         if (erroValidacao) {
@@ -84,6 +89,7 @@ async function criarDemanda(req, res) {
         }
 
         const novaDemanda = await demandaModel.criarDemanda(
+            req.usuario.id,
             String(numero_demanda).trim(),
             String(beneficiario).trim(),
             String(regional),
@@ -97,22 +103,20 @@ async function criarDemanda(req, res) {
             demanda: novaDemanda
         });
     } catch (erro) {
-        console.error("Erro ao cadastrar demanda:", erro);
-        return res.status(500).json({ mensagem: "Erro ao cadastrar demanda." });
+        return next(erro);
     }
 }
 
-async function listarDemandas(req, res) {
+async function listarDemandas(req, res, next) {
     try {
-        const demandas = await demandaModel.listarDemandas();
+        const demandas = await demandaModel.listarDemandas(req.usuario.id);
         return res.status(200).json(demandas);
     } catch (erro) {
-        console.error("Erro ao buscar demandas:", erro);
-        return res.status(500).json({ mensagem: "Erro ao buscar demandas." });
+        return next(erro);
     }
 }
 
-async function excluirDemanda(req, res) {
+async function excluirDemanda(req, res, next) {
     try {
         const { id } = req.params;
 
@@ -120,7 +124,7 @@ async function excluirDemanda(req, res) {
             return res.status(400).json({ mensagem: "ID invalido." });
         }
 
-        const demanda = await demandaModel.excluirDemanda(id);
+        const demanda = await demandaModel.excluirDemanda(req.usuario.id, id);
 
         if (!demanda) {
             return res.status(404).json({ mensagem: "Demanda nao encontrada." });
@@ -128,12 +132,11 @@ async function excluirDemanda(req, res) {
 
         return res.status(200).json({ mensagem: "Demanda excluida com sucesso." });
     } catch (erro) {
-        console.error("Erro ao excluir demanda:", erro);
-        return res.status(500).json({ mensagem: "Erro ao excluir demanda." });
+        return next(erro);
     }
 }
 
-async function atualizarDemanda(req, res) {
+async function atualizarDemanda(req, res, next) {
     try {
         const { id } = req.params;
 
@@ -148,14 +151,15 @@ async function atualizarDemanda(req, res) {
             assunto,
             data_vencimento,
             concluida
-        } = req.body;
+        } = req.body || {};
 
         const erroValidacao = validarDemanda({
             numero_demanda,
             beneficiario,
             regional,
             assunto,
-            data_vencimento
+            data_vencimento,
+            concluida
         });
 
         if (erroValidacao) {
@@ -163,6 +167,7 @@ async function atualizarDemanda(req, res) {
         }
 
         const demanda = await demandaModel.atualizarDemanda(
+            req.usuario.id,
             id,
             String(numero_demanda).trim(),
             String(beneficiario).trim(),
@@ -181,18 +186,16 @@ async function atualizarDemanda(req, res) {
             demanda
         });
     } catch (erro) {
-        console.error("Erro ao atualizar demanda:", erro);
-        return res.status(500).json({ mensagem: "Erro ao atualizar demanda." });
+        return next(erro);
     }
 }
 
-async function buscarDemandasVencendoAmanha(req, res) {
+async function buscarDemandasVencendoAmanha(req, res, next) {
     try {
-        const demandas = await demandaModel.buscarDemandasVencendoAmanha();
+        const demandas = await demandaModel.buscarDemandasVencendoAmanha(req.usuario.id);
         return res.status(200).json(demandas);
     } catch (erro) {
-        console.error("Erro ao verificar demandas:", erro);
-        return res.status(500).json({ mensagem: "Erro ao verificar demandas." });
+        return next(erro);
     }
 }
 
