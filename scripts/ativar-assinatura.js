@@ -26,8 +26,10 @@ async function ativarAssinatura(opcoes) {
     const client = await db.connect();
     try {
         await client.query("BEGIN");
-        const usuario = (await client.query("SELECT id FROM usuarios WHERE email = $1 FOR UPDATE", [validado.email])).rows[0];
+        await client.query("SELECT pg_advisory_xact_lock(715120263)");
+        const usuario = (await client.query("SELECT id, papel FROM usuarios WHERE email = $1 FOR UPDATE", [validado.email])).rows[0];
         if (!usuario) throw new Error("Conta nao encontrada. Cadastre a conta de destino primeiro.");
+        if (usuario.papel !== "profissional") throw new Error("A conta de administrador nao utiliza assinatura de demandas.");
         const resultado = await client.query(`
             UPDATE usuarios SET
                 assinatura_plano = $2::varchar(10),

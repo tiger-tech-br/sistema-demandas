@@ -1,4 +1,4 @@
-export type Usuario = { id: number; nome: string; email: string };
+export type Usuario = { id: number; nome: string; email: string; papel: 'profissional' | 'admin'; bloqueado: boolean };
 export type Assinatura = {
   status: 'teste' | 'ativa' | 'expirada';
   plano: 'mensal' | 'anual' | null;
@@ -25,7 +25,24 @@ export type Demanda = {
   concluida: boolean;
 };
 export type NovaDemanda = Omit<Demanda, 'id'>;
-export type Visao = 'dashboard' | 'demandas' | 'assinatura' | 'conta';
+export type Visao = 'dashboard' | 'demandas' | 'assinatura' | 'conta' | 'admin';
+export type PessoaAssinante = {
+  id: number;
+  nome: string;
+  email: string;
+  criado_em: string;
+  bloqueado: boolean;
+  assinatura: Assinatura;
+};
+export type AtivacaoAssinatura = {
+  id: number;
+  referencia: string;
+  plano: 'mensal' | 'anual';
+  valor_centavos: number;
+  acesso_ate: string;
+  ativado_em: string;
+};
+export type ResumoPessoas = { total: number; em_teste: number; ativas: number; expiradas: number; bloqueadas: number };
 export const REGIONAIS = ['ABC', 'Campinas', 'Sorocaba', 'Baixada Santista', 'Americana', 'Nacional'];
 
 export function diasAte(data: string) {

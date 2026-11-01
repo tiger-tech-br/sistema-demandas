@@ -30,7 +30,7 @@ export default function AuthScreen({ onDone, aviso }: { onDone: (conta: Conta) =
     <header className="auth-top"><Brand/><span className="auth-safe"><ShieldCheck size={17}/> Espaço individual e seguro</span></header>
     <div className="auth-content"><section className="auth-hero">
       <span className="eyebrow"><Sparkles size={15}/> MENOS CORRERIA. MAIS CONTROLE.</span>
-      <h1>Seus prazos{' '}<br/>em dia.{' '}<br/><span>Sua rotina leve.</span></h1>
+      <h1>Seus prazos{' '}<br/>em dia{' '}<br/><span>Sua rotina leve</span></h1>
       <p>Um lugar para organizar suas demandas e cuidar do que realmente precisa da sua atenção.</p>
       <div className="hero-preview"><div className="preview-icon"><CalendarCheck2 size={28}/></div><div><strong>Tudo no seu tempo.</strong><span>Organize. Acompanhe. Conclua.</span></div><span className="preview-check"><Check size={18}/></span></div>
       <div className="hero-benefits"><span><Check size={15}/> Demandas em um só lugar</span><span><Check size={15}/> Alertas de vencimento</span><span><Check size={15}/> Seu espaço, seus registros</span></div>

@@ -22,7 +22,7 @@ function validarCredenciais(body, cadastro = false) {
 
 function respostaConta(req, usuario, sessao) {
     const resposta = {
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel, bloqueado: Boolean(usuario.bloqueado_em) },
         assinatura: obterAssinatura(usuario, usuario.agora)
     };
     if (sessao && clienteAndroid(req)) resposta.token = sessao.token;

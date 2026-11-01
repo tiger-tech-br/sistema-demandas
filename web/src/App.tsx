@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, LogOut, RefreshCw, ShieldAlert, X } from 'lucide-react';
 import { api, ApiError, definirConta, geracaoSessao, iniciarCliente, limparSessaoLocal } from './api';
 import { diasAte, type Assinatura as AssinaturaTipo, type Cobranca, type Conta, type Demanda, type NovaDemanda, type Plano, type Visao } from './types';
 import AuthScreen from './components/AuthScreen';
@@ -9,6 +9,7 @@ import Demandas, { NovaDemandaModal } from './components/Demandas';
 import Assinatura, { MinhaConta } from './components/Assinatura';
 import Brand from './components/Brand';
 import AvisoPrazo from './components/AvisoPrazo';
+import Admin from './components/Admin';
 
 const EVENTO_ABAS = 'demandas-conta-evento';
 export default function App() {
@@ -47,15 +48,21 @@ export default function App() {
     let ativo = true;
     const semSessao = (event: Event) => limparTela(contaRef.current ? (event as CustomEvent<string>).detail : '');
     const assinaturaMudou = (event: Event) => {
+      if (contaRef.current?.usuario.papel === 'admin') return;
       const assinatura = (event as CustomEvent<AssinaturaTipo>).detail;
       setConta(anterior => anterior ? { ...anterior, assinatura } : null);
       setModal(false);
       if (assinatura.status === 'expirada') { setDemandas([]); setAvisoPrazo([]); setVisao('assinatura'); }
     };
+    const acessoBloqueado = () => {
+      setConta(anterior => anterior ? { ...anterior, usuario: { ...anterior.usuario, bloqueado: true } } : null);
+      setDemandas([]); setAvisoPrazo([]); setModal(false); setCarregando(false);
+    };
     const outraAba = () => limparTela('O acesso foi alterado em outra aba. Entre novamente para continuar.');
     const armazenamento = (event: StorageEvent) => { if (event.key === EVENTO_ABAS && event.newValue) outraAba(); };
     window.addEventListener('demandas:sem-sessao', semSessao);
     window.addEventListener('demandas:assinatura', assinaturaMudou);
+    window.addEventListener('demandas:acesso-bloqueado', acessoBloqueado);
     window.addEventListener('storage', armazenamento);
     try { canalRef.current = new BroadcastChannel('demandas-conta'); canalRef.current.onmessage = outraAba; } catch { /* Evento storage serve como alternativa. */ }
     void (async () => {
@@ -69,17 +76,18 @@ export default function App() {
         const geracaoRestaurada = geracaoSessao();
         await definindo;
         if (!ativo || geracaoRestaurada !== geracaoSessao()) return;
-        setCarregando(sessao.value.assinatura.status !== 'expirada');
+        setCarregando(sessao.value.usuario.papel !== 'admin' && !sessao.value.usuario.bloqueado && sessao.value.assinatura.status !== 'expirada');
+        setVisao(sessao.value.usuario.papel === 'admin' ? 'admin' : 'dashboard');
         setConta(sessao.value);
       }
       else if (sessao.status === 'rejected' && !(sessao.reason instanceof ApiError && sessao.reason.status === 401)) setAvisoAcesso('Não foi possível verificar seu acesso. Confira sua conexão e tente entrar novamente.');
       setPronto(true);
     })().catch(() => { if (ativo) { setPronto(true); setAvisoAcesso('Não foi possível iniciar. Atualize a página para tentar novamente.'); } });
-    return () => { ativo = false; window.removeEventListener('demandas:sem-sessao', semSessao); window.removeEventListener('demandas:assinatura', assinaturaMudou); window.removeEventListener('storage', armazenamento); canalRef.current?.close(); };
+    return () => { ativo = false; window.removeEventListener('demandas:sem-sessao', semSessao); window.removeEventListener('demandas:assinatura', assinaturaMudou); window.removeEventListener('demandas:acesso-bloqueado', acessoBloqueado); window.removeEventListener('storage', armazenamento); canalRef.current?.close(); };
   }, [limparTela]);
 
   const carregarDemandas = useCallback(async () => {
-    if (!contaRef.current || contaRef.current.assinatura.status === 'expirada') { setDemandas([]); setAvisoPrazo([]); setCarregando(false); return; }
+    if (!contaRef.current || contaRef.current.usuario.papel === 'admin' || contaRef.current.usuario.bloqueado || contaRef.current.assinatura.status === 'expirada') { setDemandas([]); setAvisoPrazo([]); setCarregando(false); return; }
     const geracao = geracaoSessao();
     setCarregando(true); setErroDemandas('');
     try {
@@ -95,10 +103,14 @@ export default function App() {
 
   useEffect(() => {
     if (!conta) return;
+    if (conta.usuario.papel === 'admin' || conta.usuario.bloqueado) {
+      setDemandas([]); setAvisoPrazo([]); setCobranca(null); setCarregando(false);
+      return;
+    }
     void carregarDemandas();
     const geracao = geracaoSessao();
     void api<Cobranca>('/cobranca/status').then(resultado => { if (geracao === geracaoSessao()) setCobranca(resultado); }).catch(() => { if (geracao === geracaoSessao()) setCobranca(null); });
-  }, [conta?.usuario.id, conta?.assinatura.status, carregarDemandas]);
+  }, [conta?.usuario.id, conta?.usuario.papel, conta?.usuario.bloqueado, conta?.assinatura.status, carregarDemandas]);
 
   useEffect(() => { if (!aviso) return; const timer = window.setTimeout(() => setAviso(null), 6500); return () => clearTimeout(timer); }, [aviso]);
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [conta?.usuario.id]);
@@ -108,7 +120,7 @@ export default function App() {
     const geracao = geracaoSessao();
     await definindo;
     if (geracao !== geracaoSessao()) return;
-    setDemandas([]); setAvisoPrazo([]); setCobranca(null); setAvisoAcesso(''); setCarregando(dados.assinatura.status !== 'expirada'); setConta(dados); setVisao(dados.assinatura.status === 'expirada' ? 'assinatura' : 'dashboard'); notificarAbas();
+    setDemandas([]); setAvisoPrazo([]); setCobranca(null); setAvisoAcesso(''); setCarregando(dados.usuario.papel !== 'admin' && !dados.usuario.bloqueado && dados.assinatura.status !== 'expirada'); setConta(dados); setVisao(dados.usuario.papel === 'admin' ? 'admin' : dados.assinatura.status === 'expirada' ? 'assinatura' : 'dashboard'); notificarAbas();
     if (!planos.length) void api<{ planos: Plano[] }>('/planos').then(resultado => setPlanos(resultado.planos)).catch(() => {});
   }
 
@@ -151,25 +163,36 @@ export default function App() {
     const geracao = geracaoSessao();
     setAtualizando(true);
     try {
-      const [dados, catalogo, pagamento] = await Promise.all([api<Conta>('/auth/me'), api<{ planos: Plano[] }>('/planos'), api<Cobranca>('/cobranca/status')]);
+      const dados = await api<Conta>('/auth/me');
       if (geracao !== geracaoSessao()) return;
       if (contaRef.current && contaRef.current.usuario.id !== dados.usuario.id) { limparTela('A conta aberta mudou em outra aba. Entre novamente para continuar.'); return; }
-      setConta(dados); setPlanos(catalogo.planos); setCobranca(pagamento); setAviso({ texto: 'Informações de acesso atualizadas.', erro: false });
+      setConta(dados);
+      if (dados.usuario.papel !== 'admin' && !dados.usuario.bloqueado) {
+        const [catalogo, pagamento] = await Promise.allSettled([api<{ planos: Plano[] }>('/planos'), api<Cobranca>('/cobranca/status')]);
+        if (geracao !== geracaoSessao()) return;
+        if (catalogo.status === 'fulfilled') setPlanos(catalogo.value.planos);
+        if (pagamento.status === 'fulfilled') setCobranca(pagamento.value);
+      }
+      setAviso({ texto: 'Informações de acesso atualizadas.', erro: false });
     } catch (error) { if (geracao === geracaoSessao()) setAviso({ texto: (error as Error).message, erro: true }); }
     finally { if (geracao === geracaoSessao()) setAtualizando(false); }
   }
 
   if (!pronto) return <main className="boot-screen"><Brand/><span className="spinner"/><p>Preparando seu espaço...</p></main>;
   if (!conta) return <AuthScreen onDone={entrar} aviso={avisoAcesso}/>;
-  const nova = () => { if (!carregando && conta.assinatura.status !== 'expirada') setModal(true); };
+  const admin = conta.usuario.papel === 'admin';
+  const bloqueado = !admin && conta.usuario.bloqueado;
+  const nova = () => { if (!admin && !bloqueado && !carregando && conta.assinatura.status !== 'expirada') setModal(true); };
   const pendentes = demandas.filter(item => !item.concluida && diasAte(item.data_vencimento) >= 0 && diasAte(item.data_vencimento) <= 3).length;
-  return <AppShell conta={conta} visao={visao} navegar={setVisao} sair={() => void sair()} saindo={saindo} pendentes={pendentes}>
+  return <AppShell conta={conta} visao={admin && visao !== 'conta' ? 'admin' : visao} navegar={setVisao} sair={() => void sair()} saindo={saindo} pendentes={pendentes}>
     {aviso && <div className={`toast ${aviso.erro ? 'toast--error' : ''}`} role={aviso.erro ? 'alert' : 'status'}>{aviso.erro ? <AlertCircle size={20}/> : <CheckCircle2 size={20}/>}<span>{aviso.texto}</span><button className="icon-btn" onClick={() => setAviso(null)} aria-label="Fechar aviso"><X size={16}/></button></div>}
-    {visao === 'dashboard' && <Dashboard conta={conta} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} nova={nova} navegar={setVisao} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>}
-    {visao === 'demandas' && (conta.assinatura.status === 'expirada' ? <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando}/> : <Demandas key={conta.usuario.id} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} nova={nova} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>)}
-    {visao === 'assinatura' && <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando}/>}
+    {admin && visao !== 'conta' && <Admin key={conta.usuario.id} planos={planos}/>}
+    {bloqueado && visao !== 'conta' && <section className="panel blocked-access-panel" aria-labelledby="titulo-acesso-bloqueado"><span className="empty-icon"><ShieldAlert size={31}/></span><h1 id="titulo-acesso-bloqueado">Seu acesso está bloqueado</h1><p>Entre em contato com o responsável pelo sistema para conferir seu acesso. Sua conta e suas demandas permanecem salvas.</p><div><button className="ghost-btn" disabled={atualizando} onClick={() => void atualizarAcesso()}><RefreshCw size={17} className={atualizando ? 'spin' : ''}/>Atualizar acesso</button><button className="primary-btn" disabled={saindo} onClick={() => void sair()}><LogOut size={17}/>{saindo ? 'Saindo...' : 'Sair da conta'}</button></div></section>}
+    {!admin && !bloqueado && visao === 'dashboard' && <Dashboard conta={conta} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} nova={nova} navegar={setVisao} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>}
+    {!admin && !bloqueado && visao === 'demandas' && (conta.assinatura.status === 'expirada' ? <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando}/> : <Demandas key={conta.usuario.id} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} nova={nova} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>)}
+    {!admin && !bloqueado && visao === 'assinatura' && <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando}/>}
     {visao === 'conta' && <MinhaConta conta={conta}/>}
-    {modal && <NovaDemandaModal salvar={salvar} fechar={() => setModal(false)}/>}
-    {avisoPrazo.length > 0 && <AvisoPrazo demandas={avisoPrazo} fechar={() => setAvisoPrazo([])}/>}
+    {!admin && !bloqueado && modal && <NovaDemandaModal salvar={salvar} fechar={() => setModal(false)}/>}
+    {!admin && !bloqueado && avisoPrazo.length > 0 && <AvisoPrazo demandas={avisoPrazo} fechar={() => setAvisoPrazo([])}/>}
   </AppShell>;
 }

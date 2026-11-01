@@ -70,6 +70,7 @@ export async function api<T>(caminho: string, method = 'GET', dados?: unknown): 
     if (geracao === versao && !['/auth/login', '/auth/cadastro'].includes(caminho)) {
       if (resposta.status === 401) window.dispatchEvent(new CustomEvent('demandas:sem-sessao', { detail: erro.message }));
       if (resposta.status === 402 && corpo.assinatura) window.dispatchEvent(new CustomEvent('demandas:assinatura', { detail: corpo.assinatura }));
+      if (resposta.status === 403 && corpo.codigo === 'ACESSO_BLOQUEADO') window.dispatchEvent(new CustomEvent('demandas:acesso-bloqueado', { detail: erro.message }));
     }
     throw erro;
   }

@@ -13,7 +13,7 @@ async function criarUsuarioComSessao({ nome, email, senhaHash }, sessao) {
     try {
         await client.query("BEGIN");
         const resultado = await client.query(`
-            INSERT INTO usuarios (nome, email, senha_hash) VALUES ($1, $2, $3)
+            INSERT INTO usuarios (nome, email, senha_hash, papel) VALUES ($1, $2, $3, 'profissional')
             RETURNING *, CURRENT_TIMESTAMP AS agora
         `, [nome, email, senhaHash]);
         const usuario = resultado.rows[0];

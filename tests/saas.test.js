@@ -9,6 +9,8 @@ let server;
 let base;
 let alice;
 let bruno;
+let admin;
+let carla;
 let vencimento;
 
 const senha = "Senha-de-teste-123";
@@ -26,8 +28,8 @@ async function requisicao(caminho, { metodo = "GET", cookie, dados, headers = {}
     return { status: resposta.status, headers: resposta.headers, corpo: await resposta.json() };
 }
 
-async function cadastrar(nome, email) {
-    const resposta = await requisicao("/auth/cadastro", { metodo: "POST", dados: { nome, email, senha } });
+async function cadastrar(nome, email, extras = {}) {
+    const resposta = await requisicao("/auth/cadastro", { metodo: "POST", dados: { nome, email, senha, ...extras } });
     assert.equal(resposta.status, 201);
     return { ...resposta, cookie: resposta.headers.get("set-cookie").split(";")[0] };
 }
@@ -70,7 +72,7 @@ before(async () => {
     server = app.listen(0, "127.0.0.1");
     await once(server, "listening");
     base = `http://127.0.0.1:${server.address().port}`;
-}, { timeout: 120000 });
+}, { timeout: 240000 });
 
 after(async () => {
     if (server) {
@@ -81,7 +83,7 @@ after(async () => {
     if (cluster) await cluster.encerrar();
 });
 
-test("API SaaS: contas, isolamento, teste gratuito e cobranca", async (t) => {
+test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", async (t) => {
     await t.test("rotas privadas exigem sessao e precos vem do servidor", async () => {
         for (const caminho of ["/demandas", "/demandas/vencendo-amanha", "/auth/me", "/cobranca/status"]) {
             assert.equal((await requisicao(caminho)).status, 401, caminho);
@@ -98,9 +100,12 @@ test("API SaaS: contas, isolamento, teste gratuito e cobranca", async (t) => {
 
     await t.test("cadastro valida dados, protege sessao e concede exatamente 30 dias", async () => {
         assert.equal((await requisicao("/auth/cadastro", { metodo: "POST", dados: { nome: "A", email: "invalido", senha: "123" } })).status, 400);
-        alice = await cadastrar("Alice Teste", "ALICE@example.com");
+        alice = await cadastrar("Alice Teste", "ALICE@example.com", { papel: "admin", admin: true, role: "admin" });
         bruno = await cadastrar("Bruno Teste", "bruno@example.com");
         assert.equal(alice.corpo.usuario.email, "alice@example.com");
+        assert.equal(alice.corpo.usuario.papel, "profissional");
+        assert.equal(alice.corpo.usuario.bloqueado, false);
+        assert.equal((await db.query("SELECT papel FROM usuarios WHERE id = $1", [alice.corpo.usuario.id])).rows[0].papel, "profissional");
         assert.equal(alice.corpo.assinatura.status, "teste");
         assert.equal(alice.corpo.assinatura.dias_restantes, 30);
         assert.equal(alice.corpo.token, undefined);
@@ -181,6 +186,106 @@ test("API SaaS: contas, isolamento, teste gratuito e cobranca", async (t) => {
         const entrada = await requisicao("/auth/login", { metodo: "POST", dados: { email: "alice@example.com", senha } });
         assert.equal(entrada.status, 200);
         const cookie = entrada.headers.get("set-cookie").split(";")[0];
+        alice.cookie = cookie;
         assert.equal((await requisicao("/auth/me", { cookie })).corpo.usuario.id, alice.corpo.usuario.id);
+    });
+
+    await t.test("profissional nao ganha privilegios no cadastro nem acessa a administracao", async () => {
+        assert.equal((await requisicao("/admin/pessoas")).status, 401);
+        assert.equal((await requisicao("/admin/pessoas", { cookie: alice.cookie })).status, 403);
+        assert.equal((await requisicao(`/admin/pessoas/${bruno.corpo.usuario.id}`, { cookie: alice.cookie })).status, 403);
+        assert.equal((await requisicao(`/admin/pessoas/${bruno.corpo.usuario.id}/assinatura`, { metodo: "POST", cookie: alice.cookie, dados: { plano: "anual", referencia: "escalada-invalida-001" } })).status, 403);
+        assert.equal((await requisicao(`/admin/pessoas/${bruno.corpo.usuario.id}/acesso`, { metodo: "PATCH", cookie: alice.cookie, dados: { bloqueado: true } })).status, 403);
+        assert.equal((await db.query("SELECT bloqueado_em FROM usuarios WHERE id = $1", [bruno.corpo.usuario.id])).rows[0].bloqueado_em, null);
+    });
+
+    await t.test("administrador lista assinantes sem receber senhas, sessoes ou demandas privadas", async () => {
+        admin = await cadastrar("Administrador de Teste", "administrador@example.invalid", { papel: "admin" });
+        assert.equal(admin.corpo.usuario.papel, "profissional");
+        const { promoverAdministrador } = require("../scripts/promover-administrador");
+        await assert.rejects(promoverAdministrador({ email: "alice@example.com", confirmar: true }), /demandas/i);
+        assert.equal((await requisicao("/auth/me", { cookie: alice.cookie })).corpo.usuario.papel, "profissional");
+        await promoverAdministrador({ email: "administrador@example.invalid", confirmar: true });
+        assert.equal((await requisicao("/auth/me", { cookie: admin.cookie })).status, 401);
+        const entradaAdmin = await requisicao("/auth/login", { metodo: "POST", dados: { email: "administrador@example.invalid", senha } });
+        assert.equal(entradaAdmin.status, 200);
+        admin.cookie = entradaAdmin.headers.get("set-cookie").split(";")[0];
+        await promoverAdministrador({ email: "administrador@example.invalid", confirmar: true });
+        await db.query("UPDATE usuarios SET teste_expira_em = CURRENT_TIMESTAMP - INTERVAL '1 day' WHERE id = $1", [admin.corpo.usuario.id]);
+        const sessaoAdmin = await requisicao("/auth/me", { cookie: admin.cookie });
+        assert.equal(sessaoAdmin.status, 200);
+        assert.equal(sessaoAdmin.corpo.usuario.papel, "admin");
+        const lista = await requisicao("/admin/pessoas", { cookie: admin.cookie });
+        assert.equal(lista.status, 200);
+        assert.equal(lista.corpo.resumo.total, 2);
+        assert.deepEqual(lista.corpo.pessoas.map(item => item.id).sort(), [alice.corpo.usuario.id, bruno.corpo.usuario.id].sort());
+        const detalhe = await requisicao(`/admin/pessoas/${alice.corpo.usuario.id}`, { cookie: admin.cookie });
+        assert.equal(detalhe.status, 200);
+        assert.equal(detalhe.corpo.pessoa.id, alice.corpo.usuario.id);
+        assert.ok(Array.isArray(detalhe.corpo.ativacoes));
+        const serializado = JSON.stringify({ lista: lista.corpo, detalhe: detalhe.corpo });
+        assert.doesNotMatch(serializado, /senha_hash|token_hash|beneficiario|numero_demanda|data_vencimento|Pessoa de teste/);
+        for (const caminho of ["/demandas", "/demandas/vencendo-amanha", "/cobranca/status"]) {
+            assert.equal((await requisicao(caminho, { cookie: admin.cookie })).status, 403, caminho);
+        }
+        assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal" } })).status, 403);
+        assert.equal((await requisicao("/demandas", { metodo: "POST", cookie: admin.cookie, dados: demanda("909") })).status, 403);
+        const demandaAlice = (await db.query("SELECT id FROM demandas WHERE usuario_id = $1", [alice.corpo.usuario.id])).rows[0].id;
+        assert.equal((await requisicao(`/demandas/${demandaAlice}`, { metodo: "PUT", cookie: admin.cookie, dados: { ...demanda("101"), concluida: true } })).status, 403);
+        assert.equal((await requisicao(`/demandas/${demandaAlice}`, { metodo: "DELETE", cookie: admin.cookie })).status, 403);
+    });
+
+    await t.test("ativacao administrativa respeita pessoa e preco e nao duplica referencia", async () => {
+        carla = await cadastrar("Carla Teste", "carla@example.invalid");
+        const id = carla.corpo.usuario.id;
+        const antes = (await db.query("SELECT id, assinatura_expira_em FROM usuarios WHERE id = ANY($1::int[]) ORDER BY id", [[alice.corpo.usuario.id, bruno.corpo.usuario.id]])).rows;
+        const caminho = `/admin/pessoas/${id}/assinatura`;
+        const dados = { plano: "mensal", referencia: "admin-pagamento-001", usuario_id: alice.corpo.usuario.id, email: "alice@example.com", valor_centavos: 1 };
+        const ativacao = await requisicao(caminho, { metodo: "POST", cookie: admin.cookie, dados });
+        assert.ok([200, 201].includes(ativacao.status));
+        assert.equal(ativacao.corpo.pessoa.id, id);
+        assert.equal(ativacao.corpo.pessoa.assinatura.plano, "mensal");
+        const registro = (await db.query("SELECT usuario_id, valor_centavos, acesso_ate FROM ativacoes_assinatura WHERE referencia = $1", [dados.referencia])).rows[0];
+        assert.equal(registro.usuario_id, id);
+        assert.equal(registro.valor_centavos, 3500);
+        const repetida = await requisicao(caminho, { metodo: "POST", cookie: admin.cookie, dados });
+        assert.equal(repetida.status, 200);
+        assert.equal(repetida.corpo.repetida, true);
+        assert.equal((await db.query("SELECT assinatura_expira_em FROM usuarios WHERE id = $1", [id])).rows[0].assinatura_expira_em.toISOString(), registro.acesso_ate.toISOString());
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM ativacoes_assinatura WHERE referencia = $1", [dados.referencia])).rows[0].n), 1);
+        const outraPessoa = await requisicao(`/admin/pessoas/${bruno.corpo.usuario.id}/assinatura`, { metodo: "POST", cookie: admin.cookie, dados: { plano: "anual", referencia: dados.referencia } });
+        assert.equal(outraPessoa.status, 409);
+        const outroPlano = await requisicao(caminho, { metodo: "POST", cookie: admin.cookie, dados: { plano: "anual", referencia: dados.referencia } });
+        assert.equal(outroPlano.status, 409);
+        assert.equal((await requisicao(caminho, { metodo: "POST", cookie: admin.cookie, dados: { plano: "vitalicio", referencia: "admin-invalido-002" } })).status, 400);
+        const depois = (await db.query("SELECT id, assinatura_expira_em FROM usuarios WHERE id = ANY($1::int[]) ORDER BY id", [[alice.corpo.usuario.id, bruno.corpo.usuario.id]])).rows;
+        assert.deepEqual(depois, antes);
+        assert.equal((await requisicao("/admin/pessoas/2147483647/assinatura", { metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia: "admin-inexistente-003" } })).status, 404);
+    });
+
+    await t.test("bloqueio administrativo tem efeito imediato sem apagar demandas ou sessao", async () => {
+        const id = carla.corpo.usuario.id;
+        const criada = await requisicao("/demandas", { metodo: "POST", cookie: carla.cookie, dados: demanda("505") });
+        assert.equal(criada.status, 201);
+        const bloqueio = await requisicao(`/admin/pessoas/${id}/acesso`, { metodo: "PATCH", cookie: admin.cookie, dados: { bloqueado: true } });
+        assert.equal(bloqueio.status, 200);
+        assert.equal(bloqueio.corpo.pessoa.bloqueado, true);
+        const contaBloqueada = await requisicao("/auth/me", { cookie: carla.cookie });
+        assert.equal(contaBloqueada.status, 200);
+        assert.equal(contaBloqueada.corpo.usuario.bloqueado, true);
+        const negada = await requisicao("/demandas", { cookie: carla.cookie });
+        assert.equal(negada.status, 403);
+        assert.equal(negada.corpo.codigo, "ACESSO_BLOQUEADO");
+        assert.equal((await requisicao("/demandas", { metodo: "POST", cookie: carla.cookie, dados: demanda("606") })).status, 403);
+        assert.equal((await requisicao(`/demandas/${criada.corpo.demanda.id}`, { metodo: "DELETE", cookie: carla.cookie })).status, 403);
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM demandas WHERE usuario_id = $1", [id])).rows[0].n), 1);
+        assert.equal((await requisicao(`/admin/pessoas/${id}/acesso`, { metodo: "PATCH", cookie: admin.cookie, dados: { bloqueado: "false" } })).status, 400);
+        const desbloqueio = await requisicao(`/admin/pessoas/${id}/acesso`, { metodo: "PATCH", cookie: admin.cookie, dados: { bloqueado: false } });
+        assert.equal(desbloqueio.status, 200);
+        assert.equal(desbloqueio.corpo.pessoa.bloqueado, false);
+        assert.equal((await requisicao("/demandas", { cookie: carla.cookie })).status, 200);
+        const bloqueioAdmin = await requisicao(`/admin/pessoas/${admin.corpo.usuario.id}/acesso`, { metodo: "PATCH", cookie: admin.cookie, dados: { bloqueado: true } });
+        assert.ok([400, 403, 404].includes(bloqueioAdmin.status));
+        assert.equal((await requisicao("/auth/me", { cookie: admin.cookie })).corpo.usuario.bloqueado, false);
     });
 });

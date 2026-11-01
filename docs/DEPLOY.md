@@ -2,19 +2,26 @@
 
 ## Estado da operação em 31/10/2026
 
-**Publicação inicial e migração encerradas.** A verificação HTTP inicial passou, as 23 demandas foram conferidas e o bloqueio temporário da origem anterior foi removido. Atualizações de manutenção seguem na mesma branch; confira o commit e a implantação ativos no Railway para identificar a versão que está atendendo o domínio.
+**Publicação inicial e migração encerradas; versão administrativa em publicação.** As 23 demandas foram conferidas e associadas ao titular confirmado, e o bloqueio temporário da origem anterior foi removido. Confira o commit e a implantação ativos no Railway: os identificadores históricos abaixo não confirmam a publicação da nova área administrativa.
 
 - Fonte da publicação inicial enviada ao repositório na branch `codex/saas-demandas`, commit `ce6ddfaa20ea1a2c693d6b38b29840b8b2807052`.
 - Publicação inicial no Railway: implantação `26289388-8c75-4e0b-8e59-28b113b1f2a4` com estado `SUCCESS`, usando esse commit. A implantação anterior, identificada por `5e70e9ec`, foi removida. Esses identificadores são históricos e não fixam qual é a última versão ativa.
 - Na conferência da publicação inicial, o domínio entregou `index-BGw8FM-g.js`, o mesmo bundle incluído no APK daquele momento. A página de login/cadastro com oferta de 30 dias foi observada no navegador de produção, sem envio de formulário nessa verificação.
-- **23 demandas legadas** copiadas para o Neon e conferidas, todas com `usuario_id = NULL`. Resumo de conferência: `0a3bd697a799fbef3d597148d0c4bb9636ad730ba9987983bb3e0a1c5dab7915`.
-- Conferência final: 23 demandas na origem e 23 no destino, com o mesmo resumo de conteúdo; 23 registros sem dono e nenhum usuário criado no destino. Nenhuma conexão da aplicação anterior foi observada durante essa conferência.
+- **23 demandas legadas** copiadas para o Neon, inicialmente sem dono. Resumo da conferência da cópia inicial: `0a3bd697a799fbef3d597148d0c4bb9636ad730ba9987983bb3e0a1c5dab7915`.
+- Na conferência da cópia inicial havia 23 demandas na origem e 23 no destino, com o mesmo resumo de conteúdo, ainda sem usuários ou proprietário no destino. Nenhuma conexão da aplicação anterior foi observada naquela etapa.
+- A associação posterior das 23 demandas ao titular correto já foi executada, após confirmação, e conferida por SQL e resumo de conteúdo. Não registrar nome, e-mail real ou credenciais do titular nesta documentação.
 - O bloqueio temporário da origem foi removido e a operação de migração encerrou com sucesso. Não mantenha o banco anterior recebendo gravações como segundo banco do sistema.
 - APK da publicação inicial: versão **1.3**, `versionCode 4`, gerado em `SistemaDemandas-v1.3.apk`, com compilação e assinatura verificadas. Uma nova compilação de manutenção está sendo preparada com os mesmos números de versão; sua conclusão não está confirmada neste registro. Não foi realizado teste em dispositivo Android físico.
 
 ### Manutenção posterior à publicação inicial
 
-Estão em preparação atualizações das dependências Capacitor Android/Core/CLI para `8.4.3`, `body-parser` para `2.4` e `proxy-addr` para `2.0.8`, com nova rodada de testes e nova compilação do APK. Este registro não confirma que essas correções já tenham sido publicadas nem que o novo APK esteja concluído. A manutenção utiliza a mesma branch `codex/saas-demandas` e não prevê uma nova migração de banco.
+O commit `6e687e7` registra a atualização de Capacitor Android/Core/CLI para `8.4.3`, `body-parser` para `2.4` e `proxy-addr` para `2.0.8`. Ele e a publicação inicial são versões anteriores à nova área administrativa. Confira a implantação ativa no Railway para conhecer a fonte efetivamente publicada.
+
+### Versão administrativa em andamento
+
+A fonte atual acrescenta os papéis `profissional` e `admin`, a área **Pessoas assinantes**, controle de períodos pagos após conferência e bloqueio/desbloqueio de acesso, com os dados preservados. O cadastro público sempre cria um profissional; ser o primeiro cadastro ou usar determinado e-mail não concede administração.
+
+As verificações locais passaram em **14 de 14 testes** e **26 de 26 verificações de sintaxe**. A publicação desta versão, das fontes maiores e do APK final ainda está em andamento; este registro não declara essas etapas concluídas. A mesma branch `codex/saas-demandas` é utilizada. Não repetir a cópia ou a atribuição das demandas legadas já concluída.
 
 ### Destino Neon
 
@@ -27,11 +34,23 @@ Estão em preparação atualizações das dependências Capacitor Android/Core/C
 
 O serviço existente é **sistema-demandas** no Railway, projeto **charming-commitment**, ambiente **production**. O endereço permanece [sistema-demandas-production.up.railway.app](https://sistema-demandas-production.up.railway.app). O repositório é `tiger-tech-br/sistema-demandas`; a origem anterior acompanhava `master`, enquanto a fonte SaaS foi enviada à branch indicada acima. Confira o commit efetivamente implantado no Railway.
 
-### Registros legados e primeira conta
+### Registros legados já associados
 
-O sistema anterior não tinha usuários. As 23 demandas devem permanecer com `usuario_id = NULL`: ficam preservadas e invisíveis aos cadastros públicos. Nenhum primeiro cadastro assume esses dados automaticamente.
+O sistema anterior não tinha usuários. Por isso a cópia inicial preservou as demandas com `usuario_id = NULL`, sem permitir que o primeiro cadastro recebesse esses dados.
 
-O titular precisa criar uma **nova conta** na versão SaaS. A associação do legado fica para uma operação administrativa posterior, quando o e-mail correto e a quantidade de registros tiverem sido confirmados. Não execute a atribuição durante a migração sem essa identificação.
+Depois do cadastro e da identificação confirmada do titular correto, os 23 registros foram associados explicitamente e conferidos. Essa operação está encerrada; não a repita nem altere a titularidade para uma conta administrativa ou de teste.
+
+### Preparar o administrador da plataforma
+
+O administrador não precisa contratar uma assinatura pessoal e não possui acesso às operações de demandas. Ele gerencia os profissionais cadastrados, seus planos, períodos pagos e bloqueios. As permissões são validadas pelo servidor.
+
+Um operador autorizado pode promover uma conta existente que possua **zero demandas**:
+
+```text
+node scripts/promover-administrador.js --email pessoa@exemplo.com --confirmar
+```
+
+Confirme a identidade da conta e o banco correto antes de executar. A promoção preserva a senha e revoga as sessões, exigindo novo login com a mesma senha. O comando não cria conta, não muda a senha e não transfere dados. A conta do titular das demandas deve continuar como profissional.
 
 ## Procedimento e verificações da troca
 
@@ -62,7 +81,7 @@ Resultados observados na conferência da publicação inicial:
 - Login com credenciais inválidas: HTTP `401`, confirmando o atendimento da rota com acesso ao banco, sem criar usuários.
 - Migração encerrada com código de saída `0`; liberação da origem confirmada e arquivo de controle temporário ausente.
 
-Não resta pendência operacional da publicação inicial ou da migração. A manutenção posterior tem seu próprio ciclo de verificação e publicação; confirme no Railway o commit ativo após cada atualização. O novo cadastro/e-mail do titular e a associação administrativa do legado permanecem uma etapa futura, separada da cópia já concluída. A conferência do APK inicial registrada aqui é de compilação e assinatura; não representa teste em dispositivo.
+Não resta pendência operacional da publicação inicial, da cópia ou da associação do legado. A versão administrativa tem seu próprio ciclo de publicação e verificação, ainda em andamento; confirme no Railway o commit ativo após a atualização. A conferência do APK inicial registrada aqui é de compilação e assinatura; não representa teste em dispositivo.
 
 ## Android
 

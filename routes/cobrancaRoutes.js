@@ -1,5 +1,5 @@
 const express = require("express");
-const { exigirAutenticacao } = require("../middleware/autenticacao");
+const { exigirAutenticacao, exigirProfissional } = require("../middleware/autenticacao");
 const {
     obterLinkDoPlano,
     obterStatusCobranca,
@@ -8,7 +8,7 @@ const {
 
 const router = express.Router();
 
-router.use(exigirAutenticacao);
+router.use(exigirAutenticacao, exigirProfissional);
 router.use((req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();

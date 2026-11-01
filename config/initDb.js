@@ -34,6 +34,16 @@ async function executarMigracao() {
                 expira_em TIMESTAMPTZ NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_sessoes_expira_em ON sessoes (expira_em);
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS papel VARCHAR(20) NOT NULL DEFAULT 'profissional';
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_em TIMESTAMPTZ;
+            CREATE TABLE IF NOT EXISTS acoes_administrativas (
+                id SERIAL PRIMARY KEY,
+                administrador_id INTEGER NOT NULL REFERENCES usuarios(id),
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+                acao VARCHAR(40) NOT NULL,
+                detalhes JSONB NOT NULL DEFAULT '{}'::jsonb,
+                criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             CREATE TABLE IF NOT EXISTS ativacoes_assinatura (
                 id SERIAL PRIMARY KEY,
                 usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
@@ -72,6 +82,13 @@ async function executarMigracao() {
         await client.query(`
             DO $$
             BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'usuarios_papel_valido' AND conrelid = 'usuarios'::regclass
+                ) THEN
+                    ALTER TABLE usuarios ADD CONSTRAINT usuarios_papel_valido
+                    CHECK (papel IN ('profissional', 'admin'));
+                END IF;
                 IF NOT EXISTS (
                     SELECT 1 FROM pg_constraint
                     WHERE conname = 'chk_numero_demanda_numerico'

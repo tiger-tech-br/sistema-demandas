@@ -3,6 +3,7 @@ const path = require("node:path");
 const authRoutes = require("./routes/authRoutes");
 const demandaRoutes = require("./routes/demandaRoutes");
 const cobrancaRoutes = require("./routes/cobrancaRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 const { protegerOrigem } = require("./middleware/origem");
 const { obterPlanos } = require("./services/assinaturaService");
 
@@ -16,7 +17,7 @@ app.use((req, res, next) => {
     res.set("Referrer-Policy", "same-origin");
     next();
 });
-app.use(["/auth", "/demandas", "/planos", "/cobranca"], (req, res, next) => {
+app.use(["/auth", "/demandas", "/planos", "/cobranca", "/admin"], (req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
 }, protegerOrigem);
@@ -25,6 +26,7 @@ app.use("/auth", authRoutes);
 app.get("/planos", (req, res) => res.json(obterPlanos()));
 app.use("/demandas", demandaRoutes);
 app.use("/cobranca", cobrancaRoutes);
+app.use("/admin", adminRoutes);
 const frontend = path.join(__dirname, "web", "dist");
 app.use(express.static(frontend));
 app.use((req, res) => res.status(404).json({ mensagem: "Pagina ou recurso nao encontrado." }));

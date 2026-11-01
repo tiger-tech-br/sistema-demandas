@@ -15,13 +15,13 @@ async function portaLivre() {
     return porta;
 }
 
-function executar(binario, args, ambiente, { silencioso = false, permitirFalha = false } = {}) {
+function executar(binario, args, ambiente, { silencioso = false, permitirFalha = false, timeoutMs = 45000 } = {}) {
     const resultado = spawnSync(binario, args, {
         env: ambiente,
         encoding: "utf8",
         windowsHide: true,
         ...(silencioso ? { stdio: "ignore" } : {}),
-        timeout: 45000,
+        timeout: timeoutMs,
         maxBuffer: 2 * 1024 * 1024
     });
 
@@ -72,7 +72,9 @@ async function iniciarPostgresTemporario() {
     }
 
     try {
-        executar(executavel("initdb"), ["-D", dados, "-U", "postgres", "-A", "trust", "--no-locale", "--encoding=UTF8"], ambiente, { silencioso: true });
+        // Banco estritamente descartavel: dispensa fsync de inicializacao e
+        // tolera a verificacao de arquivos pelo antivirus do Windows.
+        executar(executavel("initdb"), ["-D", dados, "-U", "postgres", "-A", "trust", "--no-locale", "--encoding=UTF8", "--no-sync"], ambiente, { silencioso: true, timeoutMs: 180000 });
         inicioTentado = true;
         // O processo postgres herda pipes do pg_ctl no Windows e pode manter
         // spawnSync preso mesmo depois de pg_ctl sair. O servidor usa seu log.

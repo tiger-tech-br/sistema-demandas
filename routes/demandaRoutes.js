@@ -3,9 +3,9 @@ const express = require("express");
 const router = express.Router();
 
 const demandaController = require("../controllers/demandaController");
-const { exigirAutenticacao, exigirAssinatura } = require("../middleware/autenticacao");
+const { exigirAutenticacao, exigirAssinatura, exigirProfissional } = require("../middleware/autenticacao");
 
-router.use(exigirAutenticacao, exigirAssinatura);
+router.use(exigirAutenticacao, exigirProfissional, exigirAssinatura);
 
 /* ===========================
    CRUD

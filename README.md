@@ -1,6 +1,6 @@
 # Sistema de Demandas — SaaS individual
 
-Cada pessoa cria uma conta e acessa somente suas demandas. O cadastro inicia **30 dias gratuitos**, contados no servidor. Os planos são **R$ 35 por mês** ou **R$ 350 por ano em uma única cobrança anual**.
+Cada profissional cria uma conta e acessa somente suas demandas. O cadastro inicia **30 dias gratuitos**, contados no servidor. Os planos são **R$ 35 por mês** ou **R$ 350 por ano em uma única cobrança anual**. A administração da plataforma usa uma área separada de **Pessoas assinantes**.
 
 ## Executar
 
@@ -14,6 +14,22 @@ O sistema cria e atualiza as tabelas ao primeiro acesso à API que depende do ba
 
 Na hospedagem com HTTPS, configure `NODE_ENV=production` para cookies seguros. Configure `TRUST_PROXY_HOPS` de acordo com a quantidade real de proxies confiáveis da hospedagem; isso determina o endereço usado pelo limite de tentativas de login. `DATABASE_SSL=false` destina-se ao PostgreSQL local; o Neon usa conexão TLS verificada.
 
+## Profissional e administrador
+
+O cadastro público cria **sempre um profissional**. Não existe escolha de papel no formulário, promoção pelo primeiro cadastro ou privilégio concedido automaticamente pelo e-mail informado.
+
+O profissional usa suas demandas e contrata seu plano. O administrador usa a lista de pessoas assinantes, consulta nome, e-mail, situação, plano e período de acesso, registra pagamentos já conferidos e bloqueia ou desbloqueia o acesso. O administrador não contrata assinatura pessoal e não acessa o cadastro, a listagem, a alteração ou a exclusão de demandas.
+
+Apenas um operador autorizado do servidor pode promover uma conta já existente:
+
+```text
+node scripts/promover-administrador.js --email pessoa@exemplo.com --confirmar
+```
+
+A promoção exige que a conta não tenha demandas. Ela preserva a senha, revoga as sessões existentes e exige novo login com a mesma senha. Confirme a identidade e o banco de destino antes de executar; o comando não cria conta nem faz atribuição de dados legados.
+
+A área administrativa está implementada nesta fonte, mas sua publicação e o APK final ainda estão em andamento. Confira o estado em [Neon e Railway](docs/DEPLOY.md).
+
 ## Acesso e pagamento
 
 1. A pessoa se cadastra com nome, e-mail e senha, sem informar cartão para iniciar o teste.
@@ -24,7 +40,9 @@ Na hospedagem com HTTPS, configure `NODE_ENV=production` para cookies seguros. C
 
 Consulte [a configuração dos links e as limitações da conta CPF](docs/PAGBANK.md). Os botões de contratação permanecem indisponíveis enquanto os links reais não estiverem configurados. O retorno da página de pagamento nunca ativa uma assinatura.
 
-Após verificar no painel o pagamento efetivamente aprovado, sua identificação, o valor e o período, registre uma referência única da transação:
+Após verificar no PagBank o pagamento efetivamente aprovado, sua identificação, o valor e o período, o administrador pode abrir **Pessoas assinantes → Gerenciar → Registrar pagamento conferido**. Selecione o plano, informe a referência única da transação e marque a conferência. Esse registro concede o período de acesso; **não cobra o cartão da pessoa**. O histórico fica disponível nos detalhes.
+
+Como alternativa administrativa no servidor:
 
 ```text
 node scripts/ativar-assinatura.js --email pessoa@exemplo.com --plano mensal --referencia ID_PAGAMENTO --confirmar
@@ -34,9 +52,9 @@ Para o anual, use `--plano anual`. O acesso é prorrogado em um mês ou ano de c
 
 ## Demandas anteriores à versão SaaS
 
-As demandas existentes são preservadas sem dono e ficam invisíveis às novas contas até a atribuição explícita ao titular correto. Nenhum cadastro público recebe esses dados automaticamente.
+As **23 demandas legadas já foram associadas ao titular correto**, após confirmação e conferência por SQL e resumo de conteúdo. O cadastro público nunca recebe dados antigos automaticamente.
 
-Cadastre a conta de destino e revise a quantidade de registros antes de atribuí-los:
+Em uma futura importação de outros registros sem dono, cadastre a conta de destino e revise a quantidade antes da atribuição:
 
 ```text
 node scripts/atribuir-legado.js --email titular@exemplo.com
@@ -47,7 +65,7 @@ Esse procedimento atribui **todos** os registros sem dono à conta indicada. Se 
 
 ## Verificação
 
-`npm test` usa o executor de testes do Node e inicia um PostgreSQL temporário, isolado do banco do aplicativo, para validar autenticação, isolamento entre contas, vencimento do teste e ativação administrativa. Não carrega o `.env` do projeto. O PostgreSQL temporário é encerrado ao final.
+`npm test` usa o executor de testes do Node e inicia um PostgreSQL temporário, isolado do banco do aplicativo, para validar autenticação, isolamento entre contas, vencimento do teste, ativação administrativa, papéis e bloqueio de acesso. Não carrega o `.env` do projeto. O PostgreSQL temporário é encerrado ao final. A rodada da versão administrativa passou em **14 de 14 testes**, com verificação de sintaxe de **26 de 26 arquivos**.
 
 No Windows, o caminho padrão dos binários é `C:\Program Files\PostgreSQL\18\bin`. Em outra instalação, configure `POSTGRES_BIN`; em outros sistemas, os executáveis podem estar no `PATH`.
 
@@ -55,6 +73,6 @@ No Windows, o caminho padrão dos binários é `C:\Program Files\PostgreSQL\18\b
 
 O aplicativo Android continua com **Capacitor** e usa a mesma conta individual, com sessão nativa para seus alertas. `npm run android:sync` compila a interface em `web/dist` e sincroniza o projeto Android. A abertura nativa usa fundo branco, inclusive no modo escuro.
 
-O APK **1.3** da publicação inicial foi gerado em `SistemaDemandas-v1.3.apk`, com compilação e assinatura verificadas; não foi testado em dispositivo Android físico. A publicação inicial do servidor passou pela verificação HTTP. Atualizações de manutenção e uma nova compilação do APK estão em preparação, sem conclusão confirmada neste registro. A API Android usa `VITE_API_BASE_URL` quando configurado, com o endereço atual do Railway como padrão. O APK anterior não consegue consultar a API protegida sem a nova autenticação.
+O APK **1.3** da publicação inicial foi gerado em `SistemaDemandas-v1.3.apk`, com compilação e assinatura verificadas; não foi testado em dispositivo Android físico. A publicação inicial do servidor passou pela verificação HTTP. A versão com administração, fontes maiores e seu APK final ainda estão em compilação/publicação, sem conclusão confirmada neste registro. A API Android usa `VITE_API_BASE_URL` quando configurado, com o endereço atual do Railway como padrão. O APK anterior não consegue consultar a API protegida sem a nova autenticação.
 
-O encerramento da publicação inicial, do Neon e da migração está em [Neon e Railway](docs/DEPLOY.md). A fonte SaaS da branch `codex/saas-demandas` foi publicada no Railway; 23 demandas legadas foram copiadas e conferidas no Neon. A verificação HTTP inicial passou e a origem anterior foi liberada após a conferência. A mesma branch receberá atualizações de manutenção; confira o commit efetivamente ativo no Railway, sem assumir que o identificador da publicação inicial seja o mais recente. O legado permanece sem proprietário: o titular deverá criar uma nova conta e confirmar seu e-mail antes de uma associação administrativa futura. Nenhuma cobrança foi executada durante o desenvolvimento.
+O histórico da publicação inicial, da manutenção e da migração está em [Neon e Railway](docs/DEPLOY.md). As 23 demandas legadas foram copiadas, conferidas e associadas ao titular confirmado. A verificação HTTP inicial passou e a origem anterior foi liberada após a conferência. A versão administrativa segue na mesma branch `codex/saas-demandas`; confira o commit efetivamente ativo no Railway, sem assumir que um identificador histórico seja o mais recente. Nenhuma cobrança foi executada durante o desenvolvimento.
