@@ -93,7 +93,8 @@ input::placeholder { color: #9aa4bf; font-weight: 400; }
 .auth-reset-again { align-self: center; margin-top: 15px; font-size: 12px; }
 .auth-notice-success { margin-top: 20px; color: #2c856a; background: #f0faf5; border: 1px solid #cbeadd; font-size: 13px; }
 .auth-login:has(.auth-back) .auth-form { margin-top: 22px; }
-.auth-submit { height: 46px; width: 100%; justify-content: space-between; margin-top: 5px; font-size: 15px; }
+.auth-submit { position: relative; height: 46px; width: 100%; justify-content: center; padding-inline: 38px; margin-top: 5px; font-size: 15px; }
+.auth-submit > svg { position: absolute; right: 17px; }
 .auth-note { display: flex; align-items: center; justify-content: center; gap: 7px; color: #8b97af; font-size: 12px; margin: 17px 0 28px; }
 .auth-note svg { color: $teal; }
 .auth-copyright { color: #a0aac1; font-size: 11px; text-align: center; margin-top: auto; padding-top: 20px; }
