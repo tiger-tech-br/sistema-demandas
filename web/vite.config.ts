@@ -9,7 +9,7 @@ export default defineConfig({
   build: { outDir: 'dist', emptyOutDir: true },
   server: {
     port: 5173,
-    proxy: Object.fromEntries(['/auth', '/demandas', '/planos', '/cobranca'].map(route => [route, {
+    proxy: Object.fromEntries(['/auth', '/demandas', '/planos', '/cobranca', '/admin', '/privacidade'].map(route => [route, {
       target: process.env.API_PROXY_TARGET || 'http://127.0.0.1:4000', changeOrigin: false
     }]))
   }

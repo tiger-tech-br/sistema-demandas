@@ -2,7 +2,7 @@ const db = require("../config/db");
 const inicializarBanco = require("../config/initDb");
 const { obterAssinatura, obterPlanos } = require("./assinaturaService");
 
-const CAMPOS = "id, nome, email, criado_em, papel, bloqueado_em, teste_expira_em, assinatura_plano, assinatura_expira_em, CURRENT_TIMESTAMP AS agora";
+const CAMPOS = "id, nome, email, criado_em, papel, bloqueado_em, teste_expira_em, assinatura_plano, assinatura_expira_em, acesso_permanente, cancelamento_solicitado_em, cancelamento_confirmado_em, cancelamento_referencia, CURRENT_TIMESTAMP AS agora";
 function erroPublico(status, codigo, mensagem) {
     return Object.assign(new Error(mensagem), { status, codigo });
 }
@@ -22,11 +22,12 @@ async function buscarPessoa(client, id, bloquear = false) {
 async function listarPessoas() {
     await inicializarBanco();
     const pessoas = (await db.query(`SELECT ${CAMPOS} FROM usuarios WHERE papel = 'profissional' ORDER BY criado_em DESC, id DESC`)).rows.map(serializarPessoa);
-    const resumo = { total: pessoas.length, em_teste: 0, ativas: 0, expiradas: 0, bloqueadas: 0 };
+    const resumo = { total: pessoas.length, em_teste: 0, ativas: 0, expiradas: 0, bloqueadas: 0, gratuitas: 0 };
     for (const pessoa of pessoas) {
         if (pessoa.bloqueado) resumo.bloqueadas++;
         else if (pessoa.assinatura.status === "teste") resumo.em_teste++;
         else if (pessoa.assinatura.status === "ativa") resumo.ativas++;
+        else if (pessoa.assinatura.status === "gratuita") resumo.gratuitas++;
         else resumo.expiradas++;
     }
     return { pessoas, resumo };
@@ -61,16 +62,26 @@ async function ativarPlano(administradorId, pessoaId, dados) {
             const { usuario_id, ...ativacao } = anterior;
             return { pessoa: serializarPessoa(usuario), ativacao, repetida: true };
         }
+        if (usuario.acesso_permanente) throw erroPublico(409, "ACESSO_PERMANENTE", "Esta conta possui acesso gratuito permanente e nao precisa de um plano pago.");
+        if (usuario.cancelamento_confirmado_em && dados.nova_assinatura !== true) {
+            throw erroPublico(409, "NOVA_ASSINATURA_NECESSARIA", "Confirme que o pagamento pertence a uma nova contratacao apos o cancelamento anterior.");
+        }
+        if (!usuario.cancelamento_confirmado_em && dados.nova_assinatura === true) {
+            throw erroPublico(409, "CANCELAMENTO_NAO_CONFIRMADO", "Confirme o cancelamento da assinatura anterior antes de registrar uma nova contratacao.");
+        }
         await client.query(`UPDATE usuarios SET assinatura_plano = $2::varchar(10),
             assinatura_expira_em = GREATEST(CURRENT_TIMESTAMP, teste_expira_em, assinatura_expira_em)
-                + CASE WHEN $2::varchar(10) = 'mensal' THEN INTERVAL '1 month' ELSE INTERVAL '1 year' END
-            WHERE id = $1`, [pessoaId, plano.id]);
+                + CASE WHEN $2::varchar(10) = 'mensal' THEN INTERVAL '1 month' ELSE INTERVAL '1 year' END,
+            cancelamento_solicitado_em = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_solicitado_em END,
+            cancelamento_confirmado_em = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_confirmado_em END,
+            cancelamento_referencia = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_referencia END
+            WHERE id = $1`, [pessoaId, plano.id, dados.nova_assinatura === true]);
         const atualizado = await buscarPessoa(client, pessoaId);
         const ativacao = (await client.query(`INSERT INTO ativacoes_assinatura (usuario_id, referencia, plano, valor_centavos, acesso_ate)
             VALUES ($1, $2, $3, $4, $5) RETURNING id, referencia, plano, valor_centavos, acesso_ate, ativado_em`,
         [pessoaId, referencia, plano.id, plano.valor_centavos, atualizado.assinatura_expira_em])).rows[0];
         await client.query(`INSERT INTO acoes_administrativas (administrador_id, usuario_id, acao, detalhes)
-            VALUES ($1, $2, 'assinatura_conferida', $3::jsonb)`, [administradorId, pessoaId, JSON.stringify({ referencia, plano: plano.id, valor_centavos: plano.valor_centavos })]);
+            VALUES ($1, $2, 'assinatura_conferida', $3::jsonb)`, [administradorId, pessoaId, JSON.stringify({ referencia, plano: plano.id, valor_centavos: plano.valor_centavos, nova_assinatura: dados.nova_assinatura === true })]);
         await client.query("COMMIT");
         return { pessoa: serializarPessoa(atualizado), ativacao, repetida: false };
     } catch (erro) {
@@ -98,4 +109,39 @@ async function alterarAcesso(administradorId, pessoaId, bloqueado) {
         throw erro;
     } finally { client.release(); }
 }
-module.exports = { listarPessoas, detalharPessoa, ativarPlano, alterarAcesso };
+async function confirmarCancelamento(administradorId, pessoaId, dados, notificacoes = require("./notificacaoService")) {
+    const referencia = typeof dados?.referencia === "string" ? dados.referencia.trim() : "";
+    if (dados?.confirmado_no_pagbank !== true || !/^[A-Za-z0-9][A-Za-z0-9._:-]{2,119}$/.test(referencia)) {
+        throw erroPublico(400, "CANCELAMENTO_INVALIDO", "Cancele a assinatura no PagBank, confirme a conferencia e informe uma referencia de 3 a 120 caracteres.");
+    }
+    await inicializarBanco();
+    const client = await db.connect();
+    try {
+        await client.query("BEGIN");
+        await client.query("SELECT pg_advisory_xact_lock(715120263)");
+        const usuario = await buscarPessoa(client, pessoaId, true);
+        if (!usuario.assinatura_plano || !usuario.assinatura_expira_em || usuario.acesso_permanente) {
+            throw erroPublico(409, "SEM_ASSINATURA_PAGA", "Esta conta nao possui uma assinatura paga para cancelar.");
+        }
+        if (usuario.cancelamento_confirmado_em && usuario.cancelamento_referencia !== referencia) {
+            throw erroPublico(409, "CANCELAMENTO_JA_CONFIRMADO", "O cancelamento ja foi confirmado com outra referencia.");
+        }
+        if (!usuario.cancelamento_confirmado_em) {
+            await client.query(`UPDATE usuarios SET
+                cancelamento_solicitado_em = COALESCE(cancelamento_solicitado_em, clock_timestamp()),
+                cancelamento_confirmado_em = clock_timestamp(), cancelamento_referencia = $2
+                WHERE id = $1`, [pessoaId, referencia]);
+            await client.query(`INSERT INTO acoes_administrativas (administrador_id, usuario_id, acao, detalhes)
+                VALUES ($1, $2, 'cancelamento_confirmado', $3::jsonb)`, [administradorId, pessoaId, JSON.stringify({ referencia })]);
+        }
+        const atualizado = await buscarPessoa(client, pessoaId);
+        const notificacaoId = await notificacoes.enfileirarConfirmacaoCancelamento(client, atualizado);
+        const email = (await client.query("SELECT status FROM notificacoes_email WHERE id = $1", [notificacaoId])).rows[0];
+        await client.query("COMMIT");
+        return { pessoa: serializarPessoa(atualizado), email_confirmacao: email.status === "enviado" ? "enviado" : "pendente" };
+    } catch (erro) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw erro;
+    } finally { client.release(); }
+}
+module.exports = { listarPessoas, detalharPessoa, ativarPlano, alterarAcesso, confirmarCancelamento };

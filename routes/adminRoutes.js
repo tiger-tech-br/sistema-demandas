@@ -25,5 +25,6 @@ router.post("/pessoas/:id/assinatura", tratar(async (req, res) => {
     return res.status(resultado.repetida ? 200 : 201).json(resultado);
 }));
 router.patch("/pessoas/:id/acesso", tratar(async (req, res) => res.json(await admin.alterarAcesso(req.usuario.id, req.pessoaId, req.body?.bloqueado))));
+router.post("/pessoas/:id/cancelamento", tratar(async (req, res) => res.json(await admin.confirmarCancelamento(req.usuario.id, req.pessoaId, req.body, req.app.locals.servicoNotificacoes))));
 router.use((req, res) => res.status(404).json({ mensagem: "Rota de administracao nao encontrada." }));
 module.exports = router;

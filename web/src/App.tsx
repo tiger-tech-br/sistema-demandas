@@ -6,13 +6,27 @@ import AuthScreen from './components/AuthScreen';
 import AppShell from './components/AppShell';
 import Dashboard from './components/Dashboard';
 import Demandas, { NovaDemandaModal } from './components/Demandas';
-import Assinatura, { MinhaConta } from './components/Assinatura';
+import Assinatura, { BoasVindas, MinhaConta } from './components/Assinatura';
 import Brand from './components/Brand';
 import AvisoPrazo from './components/AvisoPrazo';
 import Admin from './components/Admin';
+import Privacidade, { PoliticaModal } from './components/Privacidade';
 
 const EVENTO_ABAS = 'demandas-conta-evento';
+function capturarRedefinicao() {
+  const endereco = new URL(location.href);
+  const fragmento = new URLSearchParams(endereco.hash.slice(1));
+  const presente = fragmento.has('redefinir_senha') || endereco.searchParams.has('redefinir_senha');
+  const token = fragmento.get('redefinir_senha') ?? endereco.searchParams.get('redefinir_senha') ?? '';
+  if (presente) {
+    endereco.searchParams.delete('redefinir_senha'); fragmento.delete('redefinir_senha');
+    endereco.hash = fragmento.toString();
+    history.replaceState(history.state, '', `${endereco.pathname}${endereco.search}${endereco.hash}`);
+  }
+  return { presente, token };
+}
 export default function App() {
+  const [redefinicao] = useState(capturarRedefinicao);
   const [pronto, setPronto] = useState(false);
   const [conta, setConta] = useState<Conta | null>(null);
   const [avisoAcesso, setAvisoAcesso] = useState('');
@@ -67,6 +81,7 @@ export default function App() {
     try { canalRef.current = new BroadcastChannel('demandas-conta'); canalRef.current.onmessage = outraAba; } catch { /* Evento storage serve como alternativa. */ }
     void (async () => {
       await iniciarCliente();
+      if (redefinicao.presente) { limparTela(); return; }
       const geracao = geracaoSessao();
       const [catalogo, sessao] = await Promise.allSettled([api<{ planos: Plano[] }>('/planos'), api<Conta>('/auth/me')]);
       if (!ativo) return;
@@ -77,17 +92,17 @@ export default function App() {
         await definindo;
         if (!ativo || geracaoRestaurada !== geracaoSessao()) return;
         setCarregando(sessao.value.usuario.papel !== 'admin' && !sessao.value.usuario.bloqueado && sessao.value.assinatura.status !== 'expirada');
-        setVisao(sessao.value.usuario.papel === 'admin' ? 'admin' : 'dashboard');
+        setVisao(sessao.value.usuario.papel === 'admin' ? 'admin' : sessao.value.assinatura.status === 'expirada' ? 'assinatura' : 'dashboard');
         setConta(sessao.value);
       }
       else if (sessao.status === 'rejected' && !(sessao.reason instanceof ApiError && sessao.reason.status === 401)) setAvisoAcesso('Não foi possível verificar seu acesso. Confira sua conexão e tente entrar novamente.');
       setPronto(true);
     })().catch(() => { if (ativo) { setPronto(true); setAvisoAcesso('Não foi possível iniciar. Atualize a página para tentar novamente.'); } });
     return () => { ativo = false; window.removeEventListener('demandas:sem-sessao', semSessao); window.removeEventListener('demandas:assinatura', assinaturaMudou); window.removeEventListener('demandas:acesso-bloqueado', acessoBloqueado); window.removeEventListener('storage', armazenamento); canalRef.current?.close(); };
-  }, [limparTela]);
+  }, [limparTela, redefinicao.presente]);
 
   const carregarDemandas = useCallback(async () => {
-    if (!contaRef.current || contaRef.current.usuario.papel === 'admin' || contaRef.current.usuario.bloqueado || contaRef.current.assinatura.status === 'expirada') { setDemandas([]); setAvisoPrazo([]); setCarregando(false); return; }
+    if (!contaRef.current || contaRef.current.usuario.papel === 'admin' || !contaRef.current.usuario.politica_aceita || contaRef.current.usuario.bloqueado || contaRef.current.assinatura.status === 'expirada') { setDemandas([]); setAvisoPrazo([]); setCarregando(false); return; }
     const geracao = geracaoSessao();
     setCarregando(true); setErroDemandas('');
     try {
@@ -110,7 +125,7 @@ export default function App() {
     void carregarDemandas();
     const geracao = geracaoSessao();
     void api<Cobranca>('/cobranca/status').then(resultado => { if (geracao === geracaoSessao()) setCobranca(resultado); }).catch(() => { if (geracao === geracaoSessao()) setCobranca(null); });
-  }, [conta?.usuario.id, conta?.usuario.papel, conta?.usuario.bloqueado, conta?.assinatura.status, carregarDemandas]);
+  }, [conta?.usuario.id, conta?.usuario.papel, conta?.usuario.bloqueado, conta?.usuario.politica_aceita, conta?.assinatura.status, carregarDemandas]);
 
   useEffect(() => { if (!aviso) return; const timer = window.setTimeout(() => setAviso(null), 6500); return () => clearTimeout(timer); }, [aviso]);
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [conta?.usuario.id]);
@@ -179,20 +194,26 @@ export default function App() {
   }
 
   if (!pronto) return <main className="boot-screen"><Brand/><span className="spinner"/><p>Preparando seu espaço...</p></main>;
-  if (!conta) return <AuthScreen onDone={entrar} aviso={avisoAcesso}/>;
+  if (!conta) return <AuthScreen onDone={entrar} aviso={avisoAcesso} redefinicao={redefinicao}/>;
   const admin = conta.usuario.papel === 'admin';
   const bloqueado = !admin && conta.usuario.bloqueado;
-  const nova = () => { if (!admin && !bloqueado && !carregando && conta.assinatura.status !== 'expirada') setModal(true); };
+  const precisaAceite = !admin && !conta.usuario.politica_aceita;
+  const precisaBoasVindas = !admin && !bloqueado && !precisaAceite && !conta.usuario.boas_vindas_vistas && !conta.assinatura.acesso_permanente && conta.assinatura.status === 'teste' && !conta.assinatura.plano;
+  const nova = () => { if (!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !carregando && conta.assinatura.status !== 'expirada') setModal(true); };
+  const alterarAssinatura = (assinatura: AssinaturaTipo) => setConta(anterior => anterior ? { ...anterior, assinatura } : null);
   const pendentes = demandas.filter(item => !item.concluida && diasAte(item.data_vencimento) >= 0 && diasAte(item.data_vencimento) <= 3).length;
-  return <AppShell conta={conta} visao={admin && visao !== 'conta' ? 'admin' : visao} navegar={setVisao} sair={() => void sair()} saindo={saindo} pendentes={pendentes}>
+  return <AppShell conta={conta} visao={admin && visao !== 'conta' && visao !== 'privacidade' ? 'admin' : visao} navegar={setVisao} sair={() => void sair()} saindo={saindo} pendentes={pendentes}>
     {aviso && <div className={`toast ${aviso.erro ? 'toast--error' : ''}`} role={aviso.erro ? 'alert' : 'status'}>{aviso.erro ? <AlertCircle size={20}/> : <CheckCircle2 size={20}/>}<span>{aviso.texto}</span><button className="icon-btn" onClick={() => setAviso(null)} aria-label="Fechar aviso"><X size={16}/></button></div>}
-    {admin && visao !== 'conta' && <Admin key={conta.usuario.id} planos={planos}/>}
-    {bloqueado && visao !== 'conta' && <section className="panel blocked-access-panel" aria-labelledby="titulo-acesso-bloqueado"><span className="empty-icon"><ShieldAlert size={31}/></span><h1 id="titulo-acesso-bloqueado">Seu acesso está bloqueado</h1><p>Entre em contato com o responsável pelo sistema para conferir seu acesso. Sua conta e suas demandas permanecem salvas.</p><div><button className="ghost-btn" disabled={atualizando} onClick={() => void atualizarAcesso()}><RefreshCw size={17} className={atualizando ? 'spin' : ''}/>Atualizar acesso</button><button className="primary-btn" disabled={saindo} onClick={() => void sair()}><LogOut size={17}/>{saindo ? 'Saindo...' : 'Sair da conta'}</button></div></section>}
+    {admin && visao !== 'conta' && visao !== 'privacidade' && <Admin key={conta.usuario.id} planos={planos}/>}
+    {bloqueado && visao !== 'conta' && visao !== 'privacidade' && visao !== 'assinatura' && <section className="panel blocked-access-panel" aria-labelledby="titulo-acesso-bloqueado"><span className="empty-icon"><ShieldAlert size={31}/></span><h1 id="titulo-acesso-bloqueado">Seu acesso está bloqueado</h1><p>Entre em contato com o responsável pelo sistema para conferir seu acesso. Sua conta e suas demandas permanecem salvas.</p><div><button className="ghost-btn" disabled={atualizando} onClick={() => void atualizarAcesso()}><RefreshCw size={17} className={atualizando ? 'spin' : ''}/>Atualizar acesso</button><button className="primary-btn" disabled={saindo} onClick={() => void sair()}><LogOut size={17}/>{saindo ? 'Saindo...' : 'Sair da conta'}</button></div></section>}
     {!admin && !bloqueado && visao === 'dashboard' && <Dashboard conta={conta} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} nova={nova} navegar={setVisao} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>}
-    {!admin && !bloqueado && visao === 'demandas' && (conta.assinatura.status === 'expirada' ? <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando}/> : <Demandas key={conta.usuario.id} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} nova={nova} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>)}
-    {!admin && !bloqueado && visao === 'assinatura' && <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando}/>}
+    {!admin && !bloqueado && visao === 'demandas' && (conta.assinatura.status === 'expirada' ? <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando} alterar={alterarAssinatura}/> : <Demandas key={conta.usuario.id} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} nova={nova} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>)}
+    {!admin && visao === 'assinatura' && <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando} alterar={alterarAssinatura}/>}
     {visao === 'conta' && <MinhaConta conta={conta}/>}
-    {!admin && !bloqueado && modal && <NovaDemandaModal salvar={salvar} fechar={() => setModal(false)}/>}
-    {!admin && !bloqueado && avisoPrazo.length > 0 && <AvisoPrazo demandas={avisoPrazo} fechar={() => setAvisoPrazo([])}/>}
+    {visao === 'privacidade' && <Privacidade key={conta.usuario.id} conta={conta}/>}
+    {precisaAceite && visao !== 'privacidade' && <PoliticaModal obrigatoria fechar={() => {}} aceita={() => setConta(anterior => anterior ? { ...anterior, usuario: { ...anterior.usuario, politica_aceita: true } } : null)} sair={() => void sair()} gerenciarPrivacidade={() => setVisao('privacidade')}/>}
+    {precisaBoasVindas && <BoasVindas conta={conta} cobranca={cobranca} concluir={() => setConta(anterior => anterior ? { ...anterior, usuario: { ...anterior.usuario, boas_vindas_vistas: true } } : null)}/>}
+    {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && modal && <NovaDemandaModal salvar={salvar} fechar={() => setModal(false)}/>}
+    {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !modal && avisoPrazo.length > 0 && <AvisoPrazo demandas={avisoPrazo} fechar={() => setAvisoPrazo([])}/>}
   </AppShell>;
 }

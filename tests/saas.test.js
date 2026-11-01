@@ -1,10 +1,12 @@
 const assert = require("node:assert/strict");
 const { after, before, test } = require("node:test");
 const { once } = require("node:events");
+const { createHash, randomBytes } = require("node:crypto");
 const { iniciarPostgresTemporario } = require("./helpers/postgres");
 
 let cluster;
 let db;
+let app;
 let server;
 let base;
 let alice;
@@ -14,6 +16,7 @@ let carla;
 let vencimento;
 
 const senha = "Senha-de-teste-123";
+const aceiteTermos = { aceite_termos: true, versao_termos: "2026-10-31" };
 
 async function requisicao(caminho, { metodo = "GET", cookie, dados, headers = {} } = {}) {
     const resposta = await fetch(`${base}${caminho}`, {
@@ -29,7 +32,7 @@ async function requisicao(caminho, { metodo = "GET", cookie, dados, headers = {}
 }
 
 async function cadastrar(nome, email, extras = {}) {
-    const resposta = await requisicao("/auth/cadastro", { metodo: "POST", dados: { nome, email, senha, ...extras } });
+    const resposta = await requisicao("/auth/cadastro", { metodo: "POST", dados: { nome, email, senha, ...aceiteTermos, ...extras } });
     assert.equal(resposta.status, 201);
     return { ...resposta, cookie: resposta.headers.get("set-cookie").split(";")[0] };
 }
@@ -45,11 +48,58 @@ function demanda(numero) {
     };
 }
 
+async function comRecuperacao(executar, { configurado = true } = {}) {
+    const { criarServicoRedefinicao } = require("../services/passwordResetService");
+    const mensagens = [];
+    const servico = criarServicoRedefinicao({
+        transporteEmail: async (mensagem) => { mensagens.push(mensagem); },
+        ...(configurado ? {
+            configuracaoEmail: {
+                apiKey: "re_teste_local",
+                from: "Teste Local <nao-responda@example.invalid>",
+                appUrl: "https://app.example.test/"
+            }
+        } : {})
+    });
+    const anterior = app.locals.servicoRedefinicao;
+    app.locals.servicoRedefinicao = servico;
+    // Isola os cenarios de rate limit, sem herdar tentativas dos testes anteriores.
+    await db.query("DELETE FROM auth_limites");
+    try {
+        await executar({ servico, mensagens });
+    } finally {
+        await servico.aguardarPendentes();
+        if (anterior) app.locals.servicoRedefinicao = anterior;
+        else delete app.locals.servicoRedefinicao;
+    }
+}
+
+async function solicitarToken(email, contexto) {
+    const quantidade = contexto.mensagens.length;
+    const resposta = await requisicao("/auth/esqueci-senha", { metodo: "POST", dados: { email } });
+    assert.equal(resposta.status, 200);
+    await contexto.servico.aguardarPendentes();
+    assert.equal(contexto.mensagens.length, quantidade + 1);
+    const texto = contexto.mensagens.at(-1).text;
+    const token = extrairTokenRedefinicao(texto);
+    // Mensagens de falha nunca incluem o link ou o token capturado.
+    assert.ok(typeof token === "string" && /^[a-f0-9]{64}$/.test(token), "O e-mail deve conter um token aleatorio de 32 bytes.");
+    return token;
+}
+
+function extrairTokenRedefinicao(texto) {
+    const endereco = /https:\/\/app\.example\.test\/[^\s]*/.exec(texto)?.[0];
+    assert.ok(endereco, "O e-mail deve incluir o endereco configurado para o aplicativo.");
+    const link = new URL(endereco);
+    assert.equal(link.search, "", "O token deve ficar no fragmento, fora da query HTTP.");
+    return new URLSearchParams(link.hash.slice(1)).get("redefinir_senha");
+}
+
 before(async () => {
     cluster = await iniciarPostgresTemporario();
     // Este arquivo nunca carrega .env nem usa a conexao do aplicativo real.
     for (const chave of Object.keys(process.env)) {
-        if (chave.startsWith("DB_") || chave.startsWith("PGBANK_") || chave.startsWith("PAGBANK_")) delete process.env[chave];
+        if (chave.startsWith("DB_") || chave.startsWith("PGBANK_") || chave.startsWith("PAGBANK_") || chave.startsWith("RESEND_") || chave === "APP_URL") delete process.env[chave];
     }
     process.env.DATABASE_URL = cluster.url;
     process.env.DATABASE_SSL = "false";
@@ -68,7 +118,7 @@ before(async () => {
         VALUES ('999', 'Registro anterior', 'ABC', 'Legado privado', CURRENT_DATE + 1);
     `);
     vencimento = (await db.query("SELECT TO_CHAR((CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::date + 1, 'YYYY-MM-DD') AS data")).rows[0].data;
-    const app = require("../app");
+    app = require("../app");
     server = app.listen(0, "127.0.0.1");
     await once(server, "listening");
     base = `http://127.0.0.1:${server.address().port}`;
@@ -100,13 +150,14 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
 
     await t.test("cadastro valida dados, protege sessao e concede exatamente 30 dias", async () => {
         assert.equal((await requisicao("/auth/cadastro", { metodo: "POST", dados: { nome: "A", email: "invalido", senha: "123" } })).status, 400);
-        alice = await cadastrar("Alice Teste", "ALICE@example.com", { papel: "admin", admin: true, role: "admin" });
+        alice = await cadastrar("Alice Teste", "ALICE@example.com", { papel: "admin", admin: true, role: "admin", acesso_permanente: true, assinatura: { status: "gratuita" } });
         bruno = await cadastrar("Bruno Teste", "bruno@example.com");
         assert.equal(alice.corpo.usuario.email, "alice@example.com");
         assert.equal(alice.corpo.usuario.papel, "profissional");
         assert.equal(alice.corpo.usuario.bloqueado, false);
         assert.equal((await db.query("SELECT papel FROM usuarios WHERE id = $1", [alice.corpo.usuario.id])).rows[0].papel, "profissional");
         assert.equal(alice.corpo.assinatura.status, "teste");
+        assert.equal(alice.corpo.assinatura.acesso_permanente, false);
         assert.equal(alice.corpo.assinatura.dias_restantes, 30);
         assert.equal(alice.corpo.token, undefined);
         assert.equal(alice.corpo.usuario.senha_hash, undefined);
@@ -118,7 +169,7 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
         const sessoes = (await db.query("SELECT token_hash FROM sessoes WHERE usuario_id = $1", [alice.corpo.usuario.id])).rows;
         assert.equal(sessoes.length, 1);
         assert.notEqual(sessoes[0].token_hash, alice.cookie.split("=")[1]);
-        assert.equal((await requisicao("/auth/cadastro", { metodo: "POST", dados: { nome: "Alice", email: "alice@example.com", senha } })).status, 409);
+        assert.equal((await requisicao("/auth/cadastro", { metodo: "POST", dados: { nome: "Alice", email: "alice@example.com", senha, ...aceiteTermos } })).status, 409);
         assert.equal((await requisicao("/auth/login", { metodo: "POST", dados: { email: "alice@example.com", senha: "Senha-incorreta-123" } })).status, 401);
         assert.equal((await requisicao("/auth/me", { cookie: alice.cookie })).corpo.usuario.id, alice.corpo.usuario.id);
     });
@@ -147,7 +198,7 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
     });
 
     await t.test("vencimento bloqueia uso, preserva dados e retorno do checkout nao libera acesso", async () => {
-        assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: bruno.cookie, dados: { plano: "mensal" } })).status, 409);
+        assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: bruno.cookie, dados: { plano: "mensal" } })).status, 503);
         await db.query("UPDATE usuarios SET teste_expira_em = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = $1", [alice.corpo.usuario.id]);
         assert.equal((await requisicao("/auth/me", { cookie: alice.cookie })).corpo.assinatura.status, "expirada");
         assert.equal((await requisicao("/demandas", { cookie: alice.cookie })).status, 402);
@@ -155,6 +206,9 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
         assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: alice.cookie, dados: { plano: "gratis", valor_centavos: 0 } })).status, 400);
         assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: alice.cookie, dados: { plano: "mensal" } })).status, 503);
         process.env.PAGBANK_LINK_MENSAL = "https://pag.ae/link-mensal-teste";
+        const checkoutTeste = await requisicao("/cobranca/checkout", { metodo: "POST", cookie: bruno.cookie, dados: { plano: "mensal" } });
+        assert.equal(checkoutTeste.status, 200);
+        assert.equal((await requisicao("/auth/me", { cookie: bruno.cookie })).corpo.assinatura.status, "teste");
         const checkout = await requisicao("/cobranca/checkout", { metodo: "POST", cookie: alice.cookie, dados: { plano: "mensal", valor_centavos: 1 } });
         assert.equal(checkout.status, 200);
         assert.equal(checkout.corpo.confirmacao_automatica, false);
@@ -287,5 +341,445 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
         const bloqueioAdmin = await requisicao(`/admin/pessoas/${admin.corpo.usuario.id}/acesso`, { metodo: "PATCH", cookie: admin.cookie, dados: { bloqueado: true } });
         assert.ok([400, 403, 404].includes(bloqueioAdmin.status));
         assert.equal((await requisicao("/auth/me", { cookie: admin.cookie })).corpo.usuario.bloqueado, false);
+    });
+
+    await t.test("recuperacao usa resposta uniforme, transporte local e apenas hash com prazo de 30 minutos", async () => {
+        await comRecuperacao(async ({ mensagens }) => {
+            const conhecida = await requisicao("/auth/esqueci-senha", { metodo: "POST", dados: { email: "alice@example.com" } });
+            const desconhecida = await requisicao("/auth/esqueci-senha", { metodo: "POST", dados: { email: "sem-conta@example.invalid" } });
+            assert.equal(conhecida.status, 503);
+            assert.equal(desconhecida.status, 503);
+            assert.deepEqual(conhecida.corpo, desconhecida.corpo);
+            assert.equal(mensagens.length, 0);
+        }, { configurado: false });
+        await comRecuperacao(async contexto => {
+            const desconhecida = await requisicao("/auth/esqueci-senha", { metodo: "POST", dados: { email: "sem-conta@example.invalid" } });
+            const conhecida = await requisicao("/auth/esqueci-senha", { metodo: "POST", dados: { email: "ALICE@example.com" } });
+            assert.equal(desconhecida.status, 200);
+            assert.equal(conhecida.status, 200);
+            assert.deepEqual(conhecida.corpo, desconhecida.corpo);
+            assert.equal(conhecida.corpo.token, undefined);
+            await contexto.servico.aguardarPendentes();
+            assert.equal(contexto.mensagens.length, 1);
+            assert.deepEqual(contexto.mensagens[0].to, ["alice@example.com"]);
+            const token = extrairTokenRedefinicao(contexto.mensagens[0].text);
+            assert.ok(token && /^[a-f0-9]{64}$/.test(token), "Token aleatorio valido no transporte sintetico.");
+            const tokenHash = createHash("sha256").update(token).digest("hex");
+            const registro = (await db.query("SELECT token_hash, usuario_id, usado_em, EXTRACT(EPOCH FROM expira_em - criado_em)::float8 AS segundos FROM redefinicoes_senha WHERE token_hash = $1", [tokenHash])).rows[0];
+            assert.ok(registro, "O banco deve guardar o hash do token enviado.");
+            assert.ok(registro.token_hash !== token, "O token em texto puro nao deve ser persistido.");
+            assert.equal(registro.usuario_id, alice.corpo.usuario.id);
+            assert.equal(registro.usado_em, null);
+            assert.equal(registro.segundos, 1800);
+        });
+    });
+
+    await t.test("links invalidos e expirados e senhas fora dos limites nao alteram a conta", async () => {
+        await comRecuperacao(async contexto => {
+            const antes = (await db.query("SELECT senha_hash, papel FROM usuarios WHERE id = $1", [alice.corpo.usuario.id])).rows[0];
+            assert.equal((await requisicao("/auth/redefinir-senha", { metodo: "POST", dados: { token: "invalido", senha: "Nova-senha-de-teste-456" } })).status, 400);
+            const token = await solicitarToken("alice@example.com", contexto);
+            const tokenHash = createHash("sha256").update(token).digest("hex");
+            for (const senhaInvalida of ["123456789", "x".repeat(129)]) {
+                assert.equal((await requisicao("/auth/redefinir-senha", { metodo: "POST", dados: { token, senha: senhaInvalida } })).status, 400);
+            }
+            assert.equal((await db.query("SELECT usado_em FROM redefinicoes_senha WHERE token_hash = $1", [tokenHash])).rows[0].usado_em, null);
+            await db.query("UPDATE redefinicoes_senha SET expira_em = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE token_hash = $1", [tokenHash]);
+            assert.equal((await requisicao("/auth/redefinir-senha", { metodo: "POST", dados: { token, senha: "Nova-senha-de-teste-456" } })).status, 400);
+            assert.deepEqual((await db.query("SELECT senha_hash, papel FROM usuarios WHERE id = $1", [alice.corpo.usuario.id])).rows[0], antes);
+            assert.equal((await requisicao("/auth/me", { cookie: alice.cookie })).status, 200);
+        });
+    });
+
+    await t.test("redefinicao e de uso unico transacional e revoga todas as sessoes e links da pessoa", async () => {
+        await comRecuperacao(async contexto => {
+            const extra = await requisicao("/auth/login", { metodo: "POST", dados: { email: "alice@example.com", senha } });
+            assert.equal(extra.status, 200);
+            const cookieExtra = extra.headers.get("set-cookie").split(";")[0];
+            const token = await solicitarToken("alice@example.com", contexto);
+            const outroToken = randomBytes(32).toString("hex");
+            await db.query("INSERT INTO redefinicoes_senha (token_hash, usuario_id, expira_em) VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '30 minutes')", [createHash("sha256").update(outroToken).digest("hex"), alice.corpo.usuario.id]);
+            const senhasNovas = ["Nova-senha-de-teste-456", "Outra-senha-de-teste-789"];
+            const resultados = await Promise.all(senhasNovas.map(novaSenha => requisicao("/auth/redefinir-senha", { metodo: "POST", dados: { token, senha: novaSenha, papel: "admin" } })));
+            assert.deepEqual(resultados.map(item => item.status).sort(), [200, 400]);
+            const senhaVencedora = senhasNovas[resultados.findIndex(item => item.status === 200)];
+            assert.equal((await requisicao("/auth/redefinir-senha", { metodo: "POST", dados: { token, senha: "Senha-de-reuso-invalido" } })).status, 400);
+            assert.equal((await requisicao("/auth/redefinir-senha", { metodo: "POST", dados: { token: outroToken, senha: "Senha-de-outro-link-invalido" } })).status, 400);
+            assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM sessoes WHERE usuario_id = $1", [alice.corpo.usuario.id])).rows[0].n), 0);
+            assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM redefinicoes_senha WHERE usuario_id = $1 AND usado_em IS NULL", [alice.corpo.usuario.id])).rows[0].n), 0);
+            assert.equal((await requisicao("/auth/me", { cookie: alice.cookie })).status, 401);
+            assert.equal((await requisicao("/auth/me", { cookie: cookieExtra })).status, 401);
+            assert.equal((await requisicao("/auth/me", { cookie: bruno.cookie })).status, 200);
+            assert.equal((await requisicao("/auth/login", { metodo: "POST", dados: { email: "alice@example.com", senha } })).status, 401);
+            const entrada = await requisicao("/auth/login", { metodo: "POST", dados: { email: "alice@example.com", senha: senhaVencedora } });
+            assert.equal(entrada.status, 200);
+            assert.equal(entrada.corpo.usuario.papel, "profissional");
+            assert.equal(entrada.corpo.assinatura.status, "ativa");
+            alice.cookie = entrada.headers.get("set-cookie").split(";")[0];
+            assert.equal((await requisicao("/demandas", { cookie: alice.cookie })).corpo.length, 1);
+        });
+    });
+
+    await t.test("recuperacao de administrador preserva o papel e exige novo login", async () => {
+        await comRecuperacao(async contexto => {
+            const token = await solicitarToken("administrador@example.invalid", contexto);
+            const senhaAdmin = "Nova-senha-admin-de-teste-123";
+            const redefinicao = await requisicao("/auth/redefinir-senha", { metodo: "POST", dados: { token, senha: senhaAdmin, papel: "profissional" } });
+            assert.equal(redefinicao.status, 200);
+            assert.equal((await requisicao("/auth/me", { cookie: admin.cookie })).status, 401);
+            const entrada = await requisicao("/auth/login", { metodo: "POST", dados: { email: "administrador@example.invalid", senha: senhaAdmin } });
+            assert.equal(entrada.status, 200);
+            assert.equal(entrada.corpo.usuario.papel, "admin");
+            admin.cookie = entrada.headers.get("set-cookie").split(";")[0];
+            assert.equal((await requisicao("/admin/pessoas", { cookie: admin.cookie })).status, 200);
+            assert.equal((await requisicao("/demandas", { cookie: admin.cookie })).status, 403);
+        });
+    });
+
+    await t.test("solicitacoes repetidas de recuperacao recebem limite e prazo para tentar novamente", async () => {
+        await comRecuperacao(async contexto => {
+            const respostas = [];
+            for (let tentativa = 0; tentativa < 6; tentativa++) respostas.push(await requisicao("/auth/esqueci-senha", { metodo: "POST", dados: { email: "limite-sem-conta@example.invalid" } }));
+            assert.deepEqual(respostas.slice(0, 5).map(item => item.status), [200, 200, 200, 200, 200]);
+            assert.equal(respostas[5].status, 429);
+            assert.ok(Number(respostas[5].headers.get("retry-after")) > 0);
+            await contexto.servico.aguardarPendentes();
+            assert.equal(contexto.mensagens.length, 0);
+        });
+    });
+
+    await t.test("cadastro exige aceite expresso da versao vigente e nao deixa conta parcial", async () => {
+        const dados = { nome: "Sem aceite", email: "sem-aceite@example.invalid", senha };
+        for (const extras of [{}, { aceite_termos: false, versao_termos: aceiteTermos.versao_termos }, { aceite_termos: "true", versao_termos: aceiteTermos.versao_termos }, { aceite_termos: true, versao_termos: "2020-01-01" }]) {
+            assert.equal((await requisicao("/auth/cadastro", { metodo: "POST", dados: { ...dados, ...extras } })).status, 400);
+        }
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM usuarios WHERE email = $1", [dados.email])).rows[0].n), 0);
+    });
+
+    await t.test("boas-vindas registra apenas a primeira escolha e nao reinicia o teste", async () => {
+        const pessoa = await cadastrar("Boas Vindas", "boas-vindas@example.invalid", { boas_vindas_em: "2020-01-01", boas_vindas_vistas: true });
+        const id = pessoa.corpo.usuario.id;
+        assert.equal(pessoa.corpo.usuario.boas_vindas_vistas, false);
+        const antes = (await db.query("SELECT teste_iniciado_em, teste_expira_em FROM usuarios WHERE id = $1", [id])).rows[0];
+        assert.equal((await requisicao("/cobranca/boas-vindas", { metodo: "POST", cookie: pessoa.cookie, dados: { escolha: "invalida" } })).status, 400);
+        assert.equal((await db.query("SELECT boas_vindas_em FROM usuarios WHERE id = $1", [id])).rows[0].boas_vindas_em, null);
+        assert.equal((await requisicao("/cobranca/boas-vindas", { metodo: "POST", cookie: pessoa.cookie, dados: { escolha: "teste" } })).status, 200);
+        const primeira = (await db.query("SELECT boas_vindas_em FROM usuarios WHERE id = $1", [id])).rows[0].boas_vindas_em;
+        assert.ok(primeira instanceof Date);
+        for (const escolha of ["mensal", "anual", "teste"]) {
+            assert.equal((await requisicao("/cobranca/boas-vindas", { metodo: "POST", cookie: pessoa.cookie, dados: { escolha } })).status, 200);
+        }
+        assert.equal((await db.query("SELECT boas_vindas_em FROM usuarios WHERE id = $1", [id])).rows[0].boas_vindas_em.toISOString(), primeira.toISOString());
+        assert.deepEqual((await db.query("SELECT teste_iniciado_em, teste_expira_em FROM usuarios WHERE id = $1", [id])).rows[0], antes);
+        assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).corpo.usuario.boas_vindas_vistas, true);
+    });
+
+    await t.test("acesso permanente depende de concessao no servidor e permite CRUD sem vencimento", async () => {
+        const pessoa = await cadastrar("Acesso Permanente", "permanente@example.invalid", { acesso_permanente: true });
+        const id = pessoa.corpo.usuario.id;
+        assert.equal((await db.query("SELECT acesso_permanente FROM usuarios WHERE id = $1", [id])).rows[0].acesso_permanente, false);
+        const { concederAcessoPermanente } = require("../scripts/conceder-acesso-permanente");
+        const concessao = { email: "permanente@example.invalid", administrador: "administrador@example.invalid", confirmar: true };
+        await assert.rejects(concederAcessoPermanente({ ...concessao, confirmar: false }), /confirmar/);
+        await assert.rejects(concederAcessoPermanente({ ...concessao, administrador: "bruno@example.com" }), /Administrador ativo/);
+        await assert.rejects(concederAcessoPermanente({ ...concessao, email: "bruno@example.com" }), /assinatura paga/);
+        assert.equal((await concederAcessoPermanente(concessao)).alterado, true);
+        assert.equal((await concederAcessoPermanente(concessao)).alterado, false);
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM acoes_administrativas WHERE usuario_id = $1 AND acao = 'acesso_permanente_concedido'", [id])).rows[0].n), 1);
+        await db.query("UPDATE usuarios SET teste_expira_em = CURRENT_TIMESTAMP - INTERVAL '1 day' WHERE id = $1", [id]);
+        const conta = await requisicao("/auth/me", { cookie: pessoa.cookie });
+        assert.equal(conta.status, 200);
+        assert.equal(conta.corpo.assinatura.status, "gratuita");
+        assert.equal(conta.corpo.assinatura.acesso_permanente, true);
+        assert.equal(conta.corpo.assinatura.acesso_ate, null);
+        assert.equal(conta.corpo.assinatura.dias_restantes, null);
+        const criada = await requisicao("/demandas", { metodo: "POST", cookie: pessoa.cookie, dados: demanda("707") });
+        assert.equal(criada.status, 201);
+        const demandaId = criada.corpo.demanda.id;
+        assert.equal((await requisicao(`/demandas/${demandaId}`, { metodo: "PUT", cookie: pessoa.cookie, dados: { ...demanda("707"), concluida: true } })).status, 200);
+        assert.equal((await requisicao(`/demandas/${demandaId}`, { metodo: "DELETE", cookie: pessoa.cookie })).status, 200);
+        assert.deepEqual((await requisicao("/demandas", { cookie: pessoa.cookie })).corpo, []);
+        process.env.PAGBANK_LINK_MENSAL = "https://pag.ae/permanente-nao-cobra";
+        try {
+            assert.equal((await requisicao("/cobranca/status", { cookie: pessoa.cookie })).corpo.pode_assinar, false);
+            assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } })).status, 409);
+            assert.equal((await requisicao("/cobranca/cancelamento", { metodo: "POST", cookie: pessoa.cookie, dados: {} })).status, 409);
+            assert.equal((await requisicao(`/admin/pessoas/${id}/assinatura`, { metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia: "permanente-nao-cobra" } })).status, 409);
+            const { ativarAssinatura } = require("../scripts/ativar-assinatura");
+            await assert.rejects(ativarAssinatura({ email: concessao.email, plano: "mensal", referencia: "permanente-cli-nao-cobra", confirmar: true }), /gratuit|permanente/);
+        } finally { delete process.env.PAGBANK_LINK_MENSAL; }
+        const detalhe = await requisicao(`/admin/pessoas/${id}`, { cookie: admin.cookie });
+        assert.equal(detalhe.corpo.pessoa.assinatura.status, "gratuita");
+    });
+
+    await t.test("politica publica e aceite de conta legada bloqueiam somente os dados operacionais", async () => {
+        const politica = await requisicao("/privacidade/politica");
+        assert.equal(politica.status, 200);
+        assert.equal(politica.corpo.versao, aceiteTermos.versao_termos);
+        assert.equal(politica.corpo.contato, "tigertechbr@outlook.com");
+        assert.ok(politica.corpo.privacidade.length > 0);
+        assert.ok(politica.corpo.termos.length > 0);
+        const pessoa = await cadastrar("Conta Legada", "legada@example.invalid");
+        const id = pessoa.corpo.usuario.id;
+        await db.query("UPDATE usuarios SET termos_versao = NULL, termos_aceitos_em = NULL WHERE id = $1", [id]);
+        const conta = await requisicao("/auth/me", { cookie: pessoa.cookie });
+        assert.equal(conta.status, 200);
+        assert.equal(conta.corpo.usuario.politica_aceita, false);
+        for (const [caminho, opcoes] of [["/demandas", {}], ["/demandas/vencendo-amanha", {}], ["/demandas", { metodo: "POST", dados: demanda("808") }]]) {
+            const resposta = await requisicao(caminho, { ...opcoes, cookie: pessoa.cookie });
+            assert.equal(resposta.status, 428);
+            assert.equal(resposta.corpo.codigo, "POLITICA_NAO_ACEITA");
+        }
+        assert.equal((await requisicao("/privacidade/dados", { cookie: pessoa.cookie })).status, 200);
+        assert.equal((await requisicao("/privacidade/aceite", { metodo: "POST", dados: { versao: aceiteTermos.versao_termos } })).status, 401);
+        assert.equal((await requisicao("/privacidade/aceite", { metodo: "POST", cookie: pessoa.cookie, dados: { versao: "2020-01-01" } })).status, 400);
+        assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).corpo.usuario.politica_aceita, false);
+        const aceite = await requisicao("/privacidade/aceite", { metodo: "POST", cookie: pessoa.cookie, dados: { versao: aceiteTermos.versao_termos, usuario_id: bruno.corpo.usuario.id } });
+        assert.equal(aceite.status, 200);
+        assert.equal(aceite.corpo.aceita, true);
+        assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).corpo.usuario.politica_aceita, true);
+        assert.equal((await requisicao("/demandas", { cookie: pessoa.cookie })).status, 200);
+        await db.query("UPDATE usuarios SET termos_versao = NULL, termos_aceitos_em = NULL WHERE id = $1", [admin.corpo.usuario.id]);
+        try { assert.equal((await requisicao("/admin/pessoas", { cookie: admin.cookie })).status, 200); }
+        finally { await db.query("UPDATE usuarios SET termos_versao = $2, termos_aceitos_em = CURRENT_TIMESTAMP WHERE id = $1", [admin.corpo.usuario.id, aceiteTermos.versao_termos]); }
+    });
+
+    await t.test("portabilidade e solicitacoes de privacidade respeitam o titular mesmo sem acesso pago", async () => {
+        for (const caminho of ["/privacidade/dados", "/privacidade/solicitacoes", "/admin/privacidade"]) {
+            assert.equal((await requisicao(caminho)).status, 401);
+        }
+        const pessoa = await cadastrar("Privacidade Individual", "privacidade@example.invalid");
+        const id = pessoa.corpo.usuario.id;
+        const criada = await requisicao("/demandas", { metodo: "POST", cookie: pessoa.cookie, dados: demanda("818") });
+        assert.equal(criada.status, 201);
+        await db.query("UPDATE usuarios SET teste_expira_em = CURRENT_TIMESTAMP - INTERVAL '1 day', bloqueado_em = CURRENT_TIMESTAMP WHERE id = $1", [id]);
+        const exportacao = await requisicao(`/privacidade/dados?usuario_id=${alice.corpo.usuario.id}`, { cookie: pessoa.cookie });
+        assert.equal(exportacao.status, 200);
+        assert.equal(exportacao.corpo.perfil.id, id);
+        assert.deepEqual(exportacao.corpo.demandas.map(item => item.id), [criada.corpo.demanda.id]);
+        assert.deepEqual(exportacao.corpo.ativacoes, []);
+        assert.doesNotMatch(JSON.stringify(exportacao.corpo), /senha_hash|token_hash|alice@example.com|Registro anterior/);
+        for (const dados of [{ tipo: "invalido", descricao: "Preciso de uma correcao" }, { tipo: "acesso", descricao: "curta" }, { tipo: "outro", descricao: "x".repeat(2001) }]) {
+            assert.equal((await requisicao("/privacidade/solicitacoes", { metodo: "POST", cookie: pessoa.cookie, dados })).status, 400);
+        }
+        const dados = { tipo: "exclusao", descricao: "Solicito avaliar a exclusao dos meus dados pessoais.", usuario_id: alice.corpo.usuario.id };
+        const solicitada = await requisicao("/privacidade/solicitacoes", { metodo: "POST", cookie: pessoa.cookie, dados });
+        assert.equal(solicitada.status, 201);
+        const solicitacaoId = solicitada.corpo.solicitacao.id;
+        assert.equal(solicitada.corpo.solicitacao.status, "pendente");
+        assert.equal((await requisicao("/privacidade/solicitacoes", { metodo: "POST", cookie: pessoa.cookie, dados })).status, 409);
+        const proprias = await requisicao(`/privacidade/solicitacoes?usuario_id=${alice.corpo.usuario.id}`, { cookie: pessoa.cookie });
+        assert.deepEqual(proprias.corpo.solicitacoes.map(item => item.id), [solicitacaoId]);
+        assert.deepEqual((await requisicao("/privacidade/solicitacoes", { cookie: alice.cookie })).corpo.solicitacoes, []);
+        assert.equal((await requisicao("/admin/privacidade", { cookie: pessoa.cookie })).status, 403);
+        assert.equal((await requisicao(`/admin/privacidade/${solicitacaoId}/resposta`, { metodo: "POST", cookie: pessoa.cookie, dados: { resposta: "Resposta indevida de outro titular" } })).status, 403);
+        const fila = await requisicao("/admin/privacidade", { cookie: admin.cookie });
+        assert.equal(fila.status, 200);
+        const naFila = fila.corpo.solicitacoes.find(item => item.id === solicitacaoId);
+        assert.equal(naFila.email, "privacidade@example.invalid");
+        assert.equal((await requisicao(`/admin/privacidade/${solicitacaoId}/resposta`, { metodo: "POST", cookie: admin.cookie, dados: { resposta: "curta" } })).status, 400);
+        const resposta = "Recebemos sua solicitacao e informamos os proximos passos pelo suporte.";
+        const respondida = await requisicao(`/admin/privacidade/${solicitacaoId}/resposta`, { metodo: "POST", cookie: admin.cookie, dados: { resposta } });
+        assert.equal(respondida.status, 200);
+        assert.equal(respondida.corpo.solicitacao.status, "respondida");
+        assert.equal((await requisicao(`/admin/privacidade/${solicitacaoId}/resposta`, { metodo: "POST", cookie: admin.cookie, dados: { resposta } })).status, 409);
+        const atualizada = await requisicao("/privacidade/solicitacoes", { cookie: pessoa.cookie });
+        assert.equal(atualizada.corpo.solicitacoes[0].resposta, resposta);
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM usuarios WHERE id = $1", [id])).rows[0].n), 1);
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM demandas WHERE usuario_id = $1", [id])).rows[0].n), 1);
+        assert.deepEqual((await requisicao("/privacidade/dados", { cookie: admin.cookie })).corpo.demandas, []);
+    });
+
+    await t.test("cancelamento exige conferencia preserva acesso e entrega confirmacao pela fila com retry", async () => {
+        const { criarServicoNotificacoes } = require("../services/notificacaoService");
+        const pessoa = await cadastrar("Cancelamento Teste", "cancelamento@example.invalid");
+        const id = pessoa.corpo.usuario.id;
+        const caminhoPlano = `/admin/pessoas/${id}/assinatura`;
+        const caminhoCancelamento = `/admin/pessoas/${id}/cancelamento`;
+        const anterior = app.locals.servicoNotificacoes;
+        const mensagens = [];
+        const semConfiguracao = criarServicoNotificacoes({ db, configuracaoEmail: null, transporteEmail: async mensagem => { mensagens.push(mensagem); } });
+        app.locals.servicoNotificacoes = semConfiguracao;
+        process.env.PAGBANK_LINK_MENSAL = "https://pag.ae/cancelamento-teste";
+        try {
+            assert.equal((await requisicao("/cobranca/cancelamento", { metodo: "POST", dados: {} })).status, 401);
+            assert.equal((await requisicao("/cobranca/cancelamento", { metodo: "POST", cookie: pessoa.cookie, dados: {} })).status, 409);
+            assert.equal((await requisicao(caminhoPlano, { metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia: "cancel-pagamento-001", nova_assinatura: true } })).status, 409);
+            assert.equal((await requisicao(caminhoPlano, { metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia: "cancel-pagamento-001" } })).status, 201);
+            const paga = (await db.query("SELECT assinatura_expira_em, teste_expira_em FROM usuarios WHERE id = $1", [id])).rows[0];
+            assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } })).status, 409);
+            await db.query("UPDATE usuarios SET teste_expira_em = CURRENT_TIMESTAMP - INTERVAL '2 days', assinatura_expira_em = CURRENT_TIMESTAMP - INTERVAL '1 day' WHERE id = $1", [id]);
+            const expirada = await requisicao("/auth/me", { cookie: pessoa.cookie });
+            assert.equal(expirada.corpo.assinatura.status, "expirada");
+            assert.equal(expirada.corpo.assinatura.renovacao_status, "ativa");
+            assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } })).status, 409);
+            await db.query("UPDATE usuarios SET teste_expira_em = $2, assinatura_expira_em = $3 WHERE id = $1", [id, paga.teste_expira_em, paga.assinatura_expira_em]);
+            const pedidos = await Promise.all([1, 2].map(() => requisicao("/cobranca/cancelamento", { metodo: "POST", cookie: pessoa.cookie, dados: { usuario_id: alice.corpo.usuario.id } })));
+            for (const pedido of pedidos) {
+                assert.equal(pedido.status, 200);
+                assert.equal(pedido.corpo.assinatura.renovacao_status, "cancelamento_solicitado");
+                assert.equal(pedido.corpo.assinatura.acesso_ate, paga.assinatura_expira_em.toISOString());
+            }
+            assert.equal(pedidos[0].corpo.assinatura.cancelamento_solicitado_em, pedidos[1].corpo.assinatura.cancelamento_solicitado_em);
+            assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM notificacoes_email WHERE usuario_id = $1", [id])).rows[0].n), 0);
+            const pendenteAntes = pedidos[0].corpo.assinatura.cancelamento_solicitado_em;
+            assert.equal((await requisicao(caminhoPlano, { metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia: "cancel-renovacao-002" } })).status, 201);
+            const renovada = (await requisicao("/auth/me", { cookie: pessoa.cookie })).corpo.assinatura;
+            assert.equal(renovada.cancelamento_solicitado_em, pendenteAntes);
+            assert.equal(renovada.renovacao_status, "cancelamento_solicitado");
+            const dados = { referencia: "cancel-confirmado-001", confirmado_no_pagbank: true };
+            assert.equal((await requisicao(caminhoCancelamento, { metodo: "POST", cookie: pessoa.cookie, dados })).status, 403);
+            for (const confirmado of [undefined, false, "true"]) {
+                assert.equal((await requisicao(caminhoCancelamento, { metodo: "POST", cookie: admin.cookie, dados: { ...dados, confirmado_no_pagbank: confirmado } })).status, 400);
+            }
+            assert.equal((await db.query("SELECT cancelamento_confirmado_em FROM usuarios WHERE id = $1", [id])).rows[0].cancelamento_confirmado_em, null);
+            app.locals.servicoNotificacoes = { enfileirarConfirmacaoCancelamento: async () => { throw new Error("Falha sintetica da persistencia da fila"); } };
+            const naoConfirmada = await requisicao(caminhoCancelamento, { metodo: "POST", cookie: admin.cookie, dados });
+            assert.equal(naoConfirmada.status, 503);
+            assert.equal((await db.query("SELECT cancelamento_confirmado_em FROM usuarios WHERE id = $1", [id])).rows[0].cancelamento_confirmado_em, null);
+            assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM acoes_administrativas WHERE usuario_id = $1 AND acao = 'cancelamento_confirmado'", [id])).rows[0].n), 0);
+            app.locals.servicoNotificacoes = semConfiguracao;
+            const confirmacoes = await Promise.all([1, 2].map(() => requisicao(caminhoCancelamento, { metodo: "POST", cookie: admin.cookie, dados })));
+            for (const confirmacao of confirmacoes) {
+                assert.equal(confirmacao.status, 200);
+                assert.equal(confirmacao.corpo.pessoa.assinatura.renovacao_status, "cancelada");
+                assert.equal(confirmacao.corpo.pessoa.assinatura.acesso_ate, renovada.acesso_ate);
+                assert.equal(confirmacao.corpo.email_confirmacao, "pendente");
+            }
+            const confirmadoEm = confirmacoes[0].corpo.pessoa.assinatura.cancelamento_confirmado_em;
+            assert.equal(confirmacoes[1].corpo.pessoa.assinatura.cancelamento_confirmado_em, confirmadoEm);
+            assert.equal((await requisicao(caminhoCancelamento, { metodo: "POST", cookie: admin.cookie, dados: { ...dados, referencia: "outra-referencia-002" } })).status, 409);
+            assert.equal((await requisicao("/demandas", { cookie: pessoa.cookie })).status, 200);
+            const notificacoes = (await db.query("SELECT id, status, tentativas FROM notificacoes_email WHERE usuario_id = $1", [id])).rows;
+            assert.equal(notificacoes.length, 1);
+            assert.equal(notificacoes[0].status, "pendente");
+            assert.equal(notificacoes[0].tentativas, 0);
+            const notificacaoId = notificacoes[0].id;
+            assert.deepEqual(await semConfiguracao.processarFila(), { reservadas: 0, enviadas: 0, falhas: 0, indisponivel: true });
+            assert.equal((await db.query("SELECT tentativas FROM notificacoes_email WHERE id = $1", [notificacaoId])).rows[0].tentativas, 0);
+            assert.equal(mensagens.length, 0);
+
+            const configuracaoEmail = { apiKey: "re_teste_local", from: "Teste Local <nao-responda@example.invalid>", appUrl: "https://app.example.test/" };
+            let falhar = true;
+            const tentativas = [];
+            const transporte = async (mensagem, configuracao, opcoes) => {
+                tentativas.push({ mensagem, opcoes });
+                if (falhar) throw new Error("Falha sintetica de entrega");
+                mensagens.push(mensagem);
+            };
+            const fila = criarServicoNotificacoes({ db, configuracaoEmail, transporteEmail: transporte });
+            const falha = await fila.processarFila();
+            assert.equal(falha.falhas, 1);
+            assert.equal(falha.enviadas, 0);
+            const aposFalha = (await db.query("SELECT status, tentativas, erro_codigo, enviado_em FROM notificacoes_email WHERE id = $1", [notificacaoId])).rows[0];
+            assert.equal(aposFalha.status, "pendente");
+            assert.equal(aposFalha.tentativas, 1);
+            assert.equal(aposFalha.erro_codigo, "ENVIO_INDISPONIVEL");
+            assert.equal(aposFalha.enviado_em, null);
+            const preservada = (await requisicao("/auth/me", { cookie: pessoa.cookie })).corpo.assinatura;
+            assert.equal(preservada.cancelamento_confirmado_em, confirmadoEm);
+            assert.equal(preservada.acesso_ate, renovada.acesso_ate);
+            assert.equal((await fila.processarFila()).reservadas, 0);
+            await db.query("UPDATE notificacoes_email SET proxima_tentativa_em = clock_timestamp() - INTERVAL '1 second' WHERE id = $1", [notificacaoId]);
+            falhar = false;
+            const segundaFila = criarServicoNotificacoes({ db, configuracaoEmail, transporteEmail: transporte });
+            const envios = await Promise.all([fila.processarFila(), segundaFila.processarFila()]);
+            assert.equal(envios.reduce((total, item) => total + item.enviadas, 0), 1);
+            assert.equal(mensagens.length, 1);
+            assert.equal(tentativas.length, 2);
+            assert.equal(tentativas[0].opcoes.idempotencyKey, tentativas[1].opcoes.idempotencyKey);
+            assert.deepEqual(mensagens[0].to, ["cancelamento@example.invalid"]);
+            assert.match(mensagens[0].text, /https:\/\/app\.example\.test\//);
+            assert.doesNotMatch(mensagens[0].text, /SISTEMA_DEMANDAS_APP_URL/);
+            assert.equal((await db.query("SELECT status FROM notificacoes_email WHERE id = $1", [notificacaoId])).rows[0].status, "enviado");
+            assert.equal((await fila.processarFila()).reservadas, 0);
+            const repetida = await requisicao(caminhoCancelamento, { metodo: "POST", cookie: admin.cookie, dados });
+            assert.equal(repetida.corpo.email_confirmacao, "enviado");
+            assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM notificacoes_email WHERE usuario_id = $1", [id])).rows[0].n), 1);
+
+            assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } })).status, 200);
+            assert.equal((await requisicao(caminhoPlano, { metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia: "nova-assinatura-003" } })).status, 409);
+            const { ativarAssinatura } = require("../scripts/ativar-assinatura");
+            await assert.rejects(ativarAssinatura({ email: "cancelamento@example.invalid", plano: "mensal", referencia: "cancelamento-cli-sem-nova", confirmar: true }), /nova contratacao|nova-assinatura/);
+            const nova = await requisicao(caminhoPlano, { metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia: "nova-assinatura-003", nova_assinatura: true } });
+            assert.equal(nova.status, 201);
+            assert.equal(nova.corpo.pessoa.assinatura.renovacao_status, "ativa");
+            assert.equal(nova.corpo.pessoa.assinatura.cancelamento_solicitado_em, null);
+            assert.equal(nova.corpo.pessoa.assinatura.cancelamento_confirmado_em, null);
+            assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } })).status, 409);
+        } finally {
+            if (anterior) app.locals.servicoNotificacoes = anterior;
+            else delete app.locals.servicoNotificacoes;
+            delete process.env.PAGBANK_LINK_MENSAL;
+        }
+    });
+
+    await t.test("redefinicao impede login antigo pausado de emitir uma nova sessao", async () => {
+        await comRecuperacao(async contexto => {
+            const pessoa = await cadastrar("Concorrencia Login", "concorrencia-login@example.invalid");
+            const id = pessoa.corpo.usuario.id;
+            const token = await solicitarToken("concorrencia-login@example.invalid", contexto);
+            const hashAnterior = (await db.query("SELECT senha_hash FROM usuarios WHERE id = $1", [id])).rows[0].senha_hash;
+            const authModel = require("../models/authModel");
+            const emitirSessaoOriginal = authModel.criarSessao;
+            let avisarPausa;
+            let liberarEmissao;
+            let pausou = false;
+            let loginPendente;
+            let limiteEspera;
+            const chegouAoEmissor = new Promise(resolve => { avisarPausa = resolve; });
+            const emissaoLiberada = new Promise(resolve => { liberarEmissao = resolve; });
+            authModel.criarSessao = async function (...args) {
+                // O controlador ja verificou a senha antiga; a emissao real ainda nao ocorreu.
+                if (args[0] === id && !pausou) {
+                    pausou = true;
+                    avisarPausa();
+                    await emissaoLiberada;
+                }
+                return emitirSessaoOriginal.apply(this, args);
+            };
+            try {
+                const android = { Origin: "capacitor://localhost", "X-App-Client": "android" };
+                loginPendente = requisicao("/auth/login", { metodo: "POST", headers: android,
+                    dados: { email: "concorrencia-login@example.invalid", senha } });
+                await Promise.race([
+                    chegouAoEmissor,
+                    loginPendente.then(() => { throw new Error("O login terminou antes de atingir a barreira de emissao."); }),
+                    new Promise((resolve, reject) => {
+                        limiteEspera = setTimeout(() => reject(new Error("O login nao atingiu a barreira de emissao em 15 segundos.")), 15000);
+                    })
+                ]);
+                clearTimeout(limiteEspera);
+                const novaSenha = "Nova-senha-concorrencia-123";
+                const redefinida = await requisicao("/auth/redefinir-senha", { metodo: "POST", dados: { token, senha: novaSenha } });
+                assert.equal(redefinida.status, 200);
+                const hashAtual = (await db.query("SELECT senha_hash FROM usuarios WHERE id = $1", [id])).rows[0].senha_hash;
+                assert.ok(hashAtual !== hashAnterior, "A redefinicao deve concluir a troca do hash antes de liberar o login antigo.");
+                assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM sessoes WHERE usuario_id = $1", [id])).rows[0].n), 0);
+                liberarEmissao();
+                const antigo = await loginPendente;
+                assert.equal(antigo.status, 401, "Uma senha verificada antes da redefinicao nao pode emitir sessao depois dela.");
+                assert.equal(antigo.headers.get("set-cookie"), null);
+                assert.equal(antigo.corpo.token, undefined);
+                assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM sessoes WHERE usuario_id = $1", [id])).rows[0].n), 0);
+                assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 401);
+                assert.equal((await requisicao("/auth/login", { metodo: "POST", dados: { email: "concorrencia-login@example.invalid", senha } })).status, 401);
+                const atual = await requisicao("/auth/login", { metodo: "POST", dados: { email: "concorrencia-login@example.invalid", senha: novaSenha } });
+                assert.equal(atual.status, 200);
+                assert.equal(atual.corpo.token, undefined);
+                assert.match(atual.headers.get("set-cookie"), /HttpOnly/i);
+                assert.equal((await requisicao("/auth/me", { cookie: atual.headers.get("set-cookie").split(";")[0] })).corpo.usuario.id, id);
+                const nativo = await requisicao("/auth/login", { metodo: "POST", headers: android,
+                    dados: { email: "concorrencia-login@example.invalid", senha: novaSenha } });
+                assert.equal(nativo.status, 200);
+                assert.ok(typeof nativo.corpo.token === "string" && /^[a-f0-9]{64}$/.test(nativo.corpo.token), "O login Android deve preservar o token de sessao.");
+                assert.equal((await requisicao("/auth/me", { headers: { Authorization: `Bearer ${nativo.corpo.token}` } })).corpo.usuario.id, id);
+            } finally {
+                clearTimeout(limiteEspera);
+                liberarEmissao();
+                if (loginPendente) await loginPendente.catch(() => {});
+                authModel.criarSessao = emitirSessaoOriginal;
+            }
+        });
     });
 });

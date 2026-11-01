@@ -1,6 +1,7 @@
 const authModel = require("../models/authModel");
 const { hashToken, obterToken } = require("../security/sessao");
 const { obterAssinatura } = require("../services/assinaturaService");
+const { VERSAO_POLITICA } = require("../services/privacidadeService");
 
 async function exigirAutenticacao(req, res, next) {
     try {
@@ -21,7 +22,9 @@ async function exigirAutenticacao(req, res, next) {
                 mensagem: "A conta aberta mudou em outra aba. Entre novamente para continuar."
             });
         }
-        req.usuario = { id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel, bloqueado: Boolean(usuario.bloqueado_em) };
+        req.usuario = { id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel, bloqueado: Boolean(usuario.bloqueado_em),
+            politica_aceita: Boolean(usuario.termos_aceitos_em) && usuario.termos_versao === VERSAO_POLITICA,
+            boas_vindas_vistas: Boolean(usuario.boas_vindas_em) };
         req.assinatura = obterAssinatura(usuario, usuario.agora);
         req.sessaoHash = tokenHash;
         return next();
@@ -31,6 +34,9 @@ async function exigirAutenticacao(req, res, next) {
 }
 
 function exigirAssinatura(req, res, next) {
+    if (!req.usuario.politica_aceita) {
+        return res.status(428).json({ codigo: "POLITICA_NAO_ACEITA", mensagem: "Revise os Termos de Uso e a Politica de Privacidade para continuar." });
+    }
     if (req.assinatura.status === "expirada") {
         return res.status(402).json({
             codigo: "ASSINATURA_EXPIRADA",

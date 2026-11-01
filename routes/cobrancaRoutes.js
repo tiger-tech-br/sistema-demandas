@@ -3,8 +3,10 @@ const { exigirAutenticacao, exigirProfissional } = require("../middleware/autent
 const {
     obterLinkDoPlano,
     obterStatusCobranca,
-    planoValido
+    planoValido,
+    podeContratar
 } = require("../services/pagbankService");
+const cobranca = require("../services/cobrancaService");
 
 const router = express.Router();
 
@@ -18,6 +20,16 @@ router.get("/status", (req, res) => {
     res.json(obterStatusCobranca(req.assinatura));
 });
 
+const tratar = operacao => async (req, res, next) => {
+    try { await operacao(req, res); }
+    catch (erro) {
+        if ([400, 404, 409].includes(erro.status)) return res.status(erro.status).json({ codigo: erro.codigo, mensagem: erro.message });
+        return next(erro);
+    }
+};
+router.post("/boas-vindas", tratar(async (req, res) => res.json(await cobranca.registrarBoasVindas(req.usuario.id, req.body?.escolha))));
+router.post("/cancelamento", tratar(async (req, res) => res.json(await cobranca.solicitarCancelamento(req.usuario.id))));
+
 router.post("/checkout", (req, res) => {
     const plano = req.body?.plano;
 
@@ -27,17 +39,17 @@ router.post("/checkout", (req, res) => {
         });
     }
 
-    if (req.assinatura?.status === "teste") {
+    if (req.assinatura?.acesso_permanente) {
         return res.status(409).json({
-            codigo: "TESTE_EM_ANDAMENTO",
-            mensagem: "Aproveite seus 30 dias grátis. A contratação ficará disponível ao término do período de teste."
+            codigo: "ACESSO_PERMANENTE",
+            mensagem: "Sua conta possui acesso gratuito permanente. Nao e necessario contratar um plano."
         });
     }
 
-    if (req.assinatura?.status !== "expirada") {
+    if (!podeContratar(req.assinatura)) {
         return res.status(409).json({
-            codigo: "ASSINATURA_ATIVA",
-            mensagem: "Você já possui acesso ativo. Consulte sua assinatura antes de contratar novamente."
+            codigo: "RENOVACAO_EM_CONFERENCIA",
+            mensagem: "Sua assinatura recorrente ja existe. Aguarde a conferencia do pagamento ou a confirmacao do cancelamento antes de contratar novamente. Entre em contato com o suporte se precisar."
         });
     }
 

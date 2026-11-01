@@ -34,8 +34,23 @@ async function executarMigracao() {
                 expira_em TIMESTAMPTZ NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_sessoes_expira_em ON sessoes (expira_em);
+            CREATE TABLE IF NOT EXISTS redefinicoes_senha (
+                token_hash CHAR(64) PRIMARY KEY,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expira_em TIMESTAMPTZ NOT NULL,
+                usado_em TIMESTAMPTZ
+            );
+            CREATE INDEX IF NOT EXISTS idx_redefinicoes_usuario ON redefinicoes_senha (usuario_id, expira_em);
             ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS papel VARCHAR(20) NOT NULL DEFAULT 'profissional';
             ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_em TIMESTAMPTZ;
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acesso_permanente BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS termos_versao VARCHAR(30);
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS termos_aceitos_em TIMESTAMPTZ;
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS boas_vindas_em TIMESTAMPTZ;
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cancelamento_solicitado_em TIMESTAMPTZ;
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cancelamento_confirmado_em TIMESTAMPTZ;
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cancelamento_referencia VARCHAR(120);
             CREATE TABLE IF NOT EXISTS acoes_administrativas (
                 id SERIAL PRIMARY KEY,
                 administrador_id INTEGER NOT NULL REFERENCES usuarios(id),
@@ -58,6 +73,36 @@ async function executarMigracao() {
                 inicio_janela TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 tentativas INTEGER NOT NULL DEFAULT 1
             );
+            CREATE TABLE IF NOT EXISTS solicitacoes_privacidade (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+                tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('acesso', 'correcao', 'exclusao', 'outro')),
+                status VARCHAR(20) NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'respondida')),
+                descricao TEXT NOT NULL,
+                criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                resposta TEXT,
+                respondido_em TIMESTAMPTZ,
+                administrador_id INTEGER REFERENCES usuarios(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_privacidade_usuario ON solicitacoes_privacidade (usuario_id, criado_em DESC);
+            CREATE TABLE IF NOT EXISTS notificacoes_email (
+                id BIGSERIAL PRIMARY KEY,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+                evento VARCHAR(40) NOT NULL,
+                chave_unica VARCHAR(160) NOT NULL UNIQUE,
+                destinatario VARCHAR(254) NOT NULL,
+                assunto VARCHAR(160) NOT NULL,
+                texto TEXT NOT NULL,
+                html TEXT NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'processando', 'enviado', 'falhou')),
+                tentativas INTEGER NOT NULL DEFAULT 0,
+                proxima_tentativa_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                bloqueado_ate TIMESTAMPTZ,
+                enviado_em TIMESTAMPTZ,
+                criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                erro_codigo VARCHAR(40)
+            );
+            CREATE INDEX IF NOT EXISTS idx_notificacoes_fila ON notificacoes_email (status, proxima_tentativa_em);
             CREATE TABLE IF NOT EXISTS demandas (
                 id SERIAL PRIMARY KEY,
                 numero_demanda VARCHAR(20),

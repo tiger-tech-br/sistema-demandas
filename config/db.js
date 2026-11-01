@@ -19,8 +19,8 @@ const pool = new Pool({
             password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME,
         }),
-    ...(connectionString && process.env.DATABASE_SSL !== "false"
-        ? { ssl: { rejectUnauthorized: false } }
+    ...(process.env.DATABASE_SSL !== "false"
+        ? { ssl: { rejectUnauthorized: true } }
         : {}),
 });
 

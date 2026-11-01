@@ -29,7 +29,7 @@ async function main() {
         !destino.hostname.endsWith(".neon.tech") || destino.pathname !== "/sistema_demandas") {
         throw new Error("Origem ou destino diferente dos bancos revisados. Operacao recusada.");
     }
-    const source = new Pool({ connectionString: anterior.DATABASE_URL, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 10000 });
+    const source = new Pool({ connectionString: anterior.DATABASE_URL, ssl: { rejectUnauthorized: true }, connectionTimeoutMillis: 10000 });
     const target = new Pool({ connectionString: atual.DATABASE_URL, ssl: { rejectUnauthorized: true }, connectionTimeoutMillis: 10000 });
     let client;
     let servidor;
@@ -63,7 +63,7 @@ async function main() {
         if (!aplicar) {
             const pgDump = process.env.PG_DUMP_PATH || "C:\\Program Files\\PostgreSQL\\18\\bin\\pg_dump.exe";
             const resultado = spawnSync(pgDump, ["--format=custom", "--file", `${nomeBase}.dump`], {
-                env: { ...process.env, PGHOST: origem.hostname, PGPORT: origem.port, PGUSER: decodeURIComponent(origem.username), PGPASSWORD: decodeURIComponent(origem.password), PGDATABASE: origem.pathname.slice(1), PGSSLMODE: "require", PGCONNECT_TIMEOUT: "10" },
+                env: { ...process.env, PGHOST: origem.hostname, PGPORT: origem.port, PGUSER: decodeURIComponent(origem.username), PGPASSWORD: decodeURIComponent(origem.password), PGDATABASE: origem.pathname.slice(1), PGSSLMODE: "verify-full", PGCONNECT_TIMEOUT: "10" },
                 stdio: "ignore", windowsHide: true, timeout: 120000
             });
             if (resultado.error || resultado.status !== 0) throw new Error("O backup completo do banco nao foi concluido.");

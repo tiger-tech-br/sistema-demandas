@@ -1,79 +1,107 @@
-# Cobrança com PagBank Pessoa Física
+# Cobrança recorrente com PagBank
 
-O produto oferece 30 dias gratuitos a partir do cadastro, plano mensal de **R$ 35** e plano anual de **R$ 350 em uma cobrança por ano**. O período gratuito é controlado pelo servidor; o pagamento só fica disponível depois de seus 30 dias completos.
+O primeiro acesso oferece três cards: **Free por 30 dias**, **Mensal de R$ 35,00** e **Anual de R$ 350,00 em uma cobrança por ano**. É possível contratar um plano pago imediatamente, inclusive durante o teste. O aplicativo informa que a primeira cobrança acontece ao concluir o pagamento no gateway; escolher o plano não agenda a cobrança para depois dos 30 dias.
 
-## O que a conta CPF permite
+O teste é local, começa no cadastro e não reinicia com a escolha de um card. Não acrescente outro período gratuito ao link do PagBank sem revisar a oferta e a operação inteira. O registro de um pagamento aprovado preserva o tempo de acesso já disponível e acrescenta um mês ou ano de calendário.
 
-A [documentação atual de pagamentos recorrentes do PagBank](https://developer.pagbank.com.br/docs/pagamentos-recorrentes) informa que contas Pessoa Física devem usar **Link de Pagamento Recorrente**. A API de recorrência exige conta Pessoa Jurídica aprovada no onboarding do produto.
+## Modalidade utilizada
 
-O link permite ao PagBank cobrar automaticamente o cartão do assinante na frequência escolhida. Isso **não equivale à liberação ou renovação automática da conta neste sistema**: o fluxo CPF por link não fornece aqui uma integração autenticada para consultar cada pagamento. Até uma integração elegível ser implementada, é necessário conferir os pagamentos no PagBank e registrar o período de acesso pela área administrativa ou pelo comando de assinatura. O sistema nunca concede acesso por clique no link, retorno do navegador, e-mail enviado pelo cliente ou notificação não verificada.
+Este projeto utiliza Link de Pagamento Recorrente. A [documentação oficial de recorrência](https://developer.pagbank.com.br/docs/pagamentos-recorrentes) orienta clientes Pessoa Física a utilizar esses links; a API exige Pessoa Jurídica aprovada no onboarding.
 
-## Criar os dois links
+O PagBank realiza as cobranças recorrentes. O aplicativo continua sem conciliação automática de pagamentos: cada ativação ou renovação depende de conferência e registro pelo administrador. Clique, retorno do navegador, mensagem do cliente e notificação não autenticada não concedem acesso.
 
-Use sua conta PagBank no computador. Conforme a [ajuda oficial sobre criação de planos](https://faq.pagbank.com.br/duvida/como-criar-um-plano-de-pagamento-recorrente/119):
+A [documentação de Checkout](https://developer.pagbank.com.br/docs/checkout) descreve a primeira cobrança na conclusão do pagamento e a criação da recorrência para cobranças futuras. O teste de 30 dias concedido pelo aplicativo não altera esse comportamento do gateway.
 
-1. Acesse **Venda online / Vendas → Link de Pagamento → Criar novo link**.
-2. Crie **Sistema de Demandas — Mensal**, valor **R$ 35,00**, e habilite **Cobrança recorrente** com frequência **Mensal**.
-3. Crie **Sistema de Demandas — Anual**, valor **R$ 350,00**, com frequência **Anual**. Não configure doze parcelas mensais.
-4. Escolha recorrência contínua, se deseja renovação até cancelamento, e copie os links gerados. Confira o valor e a frequência na página de pagamento antes de divulgá-los.
+## Links e ambiente
 
-O [guia atual de Checkout](https://developer.pagbank.com.br/docs/checkout) informa que a primeira cobrança acontece ao concluir o pagamento. Esta implementação, portanto, não apresenta contratação durante o teste e não depende de um trial configurado no PagBank. Não acrescente outros 30 dias gratuitos no link, pois o teste já é concedido pelo aplicativo.
+Crie ou revise no painel os links mensal de R$ 35,00 e anual de R$ 350,00, com as respectivas frequências. O anual é uma cobrança por ano; não o configure como doze parcelas mensais. Consulte a [orientação oficial para links recorrentes](https://developer.pagbank.com.br/docs/pagamentos-recorrentes) e confira valores, frequência e continuidade antes de oferecer os links.
 
-## Configuração do servidor
+Links públicos registrados na conferência anterior de 31/10/2026:
 
-Links públicos conferidos no checkout em 31/10/2026:
-
-| Plano | Valor e recorrência | Link |
+| Plano | Valor e frequência | Link |
 | --- | --- | --- |
-| Mensal | R$ 35,00, cobrança mensal contínua no cartão | https://pag.ae/82ixDFWsJ |
-| Anual | R$ 350,00, cobrança anual contínua no cartão | https://pag.ae/82ixDhLCJ |
+| Mensal | R$ 35,00 por mês | [Checkout mensal](https://pag.ae/82ixDFWsJ) |
+| Anual | R$ 350,00 por ano | [Checkout anual](https://pag.ae/82ixDhLCJ) |
 
-Os dois links estão configurados no `.env.local` do projeto, com a conexão do Neon preservada. Na implantação, configure as mesmas variáveis no serviço Railway; o arquivo local não é enviado ao servidor. Nenhuma compra foi concluída durante a conferência.
+Essa conferência histórica não substitui a revisão dos links no momento da operação. Nenhuma compra precisa ser realizada para conferir a configuração exibida.
 
-Defina no ambiente de hospedagem, ou no `.env` local ignorado pelo Git:
+Configure no ambiente do servidor:
 
 ```dotenv
 PAGBANK_LINK_MENSAL=https://pag.ae/SEU_LINK_MENSAL
 PAGBANK_LINK_ANUAL=https://pag.ae/SEU_LINK_ANUAL
 ```
 
-Substitua pelos links reais; os exemplos não criam planos. Não é necessário token ou senha bancária para esse fluxo. Nunca envie credenciais bancárias pelo chat ou ao navegador.
+Os exemplos não criam planos. Variáveis em `.env.local` são locais e não atualizam o Railway. O fluxo por link não exige token bancário no aplicativo; credenciais do painel não devem ser colocadas no navegador, no código ou em conversas.
 
-São aceitos links HTTPS nos hosts exatos `pag.ae`, `pagamento.pagbank.com.br` e `pagseguro.uol.com.br`, sem usuário/senha, porta não padrão ou fragmento. URLs inválidas ficam indisponíveis. O aplicativo não consegue verificar o preço contido no link sem a API: essa conferência no painel é responsabilidade do operador.
+O validador aceita somente HTTPS nos hosts exatos `pag.ae`, `pagamento.pagbank.com.br` e `pagseguro.uol.com.br`, com caminho de checkout e sem usuário, senha, porta ou fragmento. Link ausente ou inválido desabilita a contratação correspondente. A aplicação não consulta o preço do link: o operador deve conferir o valor no painel.
 
-## Endpoints implementados
+## Operação do profissional
 
-- `GET /cobranca/status`: exige sessão e informa a disponibilidade dos links, o modo `link_recorrente` e `confirmacao_automatica: false`. Não expõe credenciais.
-- `POST /cobranca/checkout` com `{"plano":"mensal"}` ou `{"plano":"anual"}`: exige sessão e acesso expirado; retorna a URL previamente configurada. Retorna `409` durante o teste ou uma assinatura ativa, `400` para plano inválido e `503` se o link não estiver configurado.
+- `GET /cobranca/status` informa links disponíveis, `confirmacao_automatica: false` e `pode_assinar`, conforme o estado da conta.
+- `POST /cobranca/boas-vindas`, com `{"escolha":"teste"}`, `mensal` ou `anual`, registra que a apresentação inicial foi vista. Não altera o teste nem confirma pagamento.
+- `POST /cobranca/checkout`, com `{"plano":"mensal"}` ou `{"plano":"anual"}`, retorna um link configurado quando a contratação é elegível. Um profissional em teste pode contratar. Plano inválido retorna `400`; link indisponível, `503`.
+- `POST /cobranca/cancelamento` registra o pedido e mantém seu estado pendente até a confirmação administrativa. Repetir o pedido preserva o mesmo cancelamento.
 
-Essas rotas de contratação pertencem ao profissional. A conta administrativa não contrata assinatura pessoal.
+Essas rotas exigem autenticação profissional. Administradores não contratam plano pessoal; contas com gratuidade permanente também não precisam contratar.
 
-Na versão administrativa em preparação para publicação:
+Uma assinatura paga já registrada impede outra contratação enquanto seu cancelamento não estiver confirmado, mesmo com o período local expirado. O endpoint retorna `409` com `RENOVACAO_EM_CONFERENCIA`: o responsável deve conferir o pagamento da renovação ou resolver o cancelamento antes de permitir outra recorrência. A expiração local não comprova que o mandato de cobrança no PagBank acabou.
 
-- `GET /admin/pessoas` e `GET /admin/pessoas/:id`: listam profissionais e seus períodos de acesso, com histórico de ativações no detalhe; não expõem as demandas.
-- `POST /admin/pessoas/:id/assinatura` com `{"plano":"mensal","referencia":"ID_PAGAMENTO"}`: registra o pagamento já conferido, usando o valor definido pelo servidor. A mesma referência para a mesma pessoa e plano não acrescenta outro período; reutilização para outra pessoa ou plano é recusada.
-- `PATCH /admin/pessoas/:id/acesso` com `{"bloqueado":true}` ou `false`: bloqueia ou desbloqueia o uso das demandas, preservando a conta e os registros. Não cancela a cobrança recorrente.
+Ao expirar o teste ou o acesso pago, o servidor exige um novo período válido para operar demandas. Os dados e a conta permanecem, com os recursos de privacidade acessíveis. O fluxo não exclui demandas nem cancela cobranças por expiração.
 
-Todas as rotas `/admin` exigem sessão de administrador autorizada pelo servidor. O cadastro público nunca cria esse papel. A promoção depende do operador e do comando documentado em [Neon e Railway](DEPLOY.md).
+## Conferir e registrar pagamento
 
-O cliente escolhe apenas o identificador do plano, nunca o valor ou a URL de destino. O cliente deve usar no pagamento o e-mail de sua conta; o operador ainda precisa confirmar a identidade e a transação no painel antes de conceder acesso.
+Confira no [Painel de Recorrência](https://assinaturas.pagbank.com.br/login) a aprovação, o titular, o valor, o plano e a referência efetiva da transação. O pagador deve usar o e-mail da conta; isso ajuda a identificação, mas não substitui a conferência.
 
-## Operação e próxima etapa
+Em **Pessoas assinantes → Gerenciar → Registrar pagamento conferido**, selecione o plano e informe a referência única da transação. A API administrativa usa:
 
-Confira a assinatura e o pagamento no [Painel de Recorrência](https://assinaturas.pagbank.com.br/login). Cancelamentos e alterações da cobrança são feitos nesse painel; sair da conta no aplicativo não cancela o pagamento recorrente.
-
-Depois de conferir no PagBank o pagamento aprovado, seu valor, o plano e a identidade correta, abra **Pessoas assinantes → Gerenciar → Registrar pagamento conferido**. Selecione mensal de R$ 35 ou anual de R$ 350, informe a referência da transação e marque que a conferência foi realizada.
-
-**Registrar o pagamento no sistema não cobra o cartão:** apenas concede ou renova o período de acesso e registra o histórico. Não utilize a operação como substituto da aprovação real no PagBank. A nova interface administrativa ainda está em publicação neste registro.
-
-Como alternativa administrativa, execute no servidor:
-
-```powershell
-node scripts/ativar-assinatura.js --email EMAIL_DA_CONTA --plano mensal --referencia ID_DO_PAGAMENTO --confirmar
+```json
+{"plano":"mensal","referencia":"ID_PAGAMENTO"}
 ```
 
-Use `--plano anual` para o pagamento anual de R$ 350. A referência deve ser o identificador único da transação efetivamente paga; o mesmo pagamento não pode liberar dois períodos. Cada renovação exige a conferência da nova transação e sua referência própria. O registro preserva o teste gratuito e o tempo de acesso já existente; não corta dias já disponíveis. O comando permanece restrito ao operador do servidor; a interface equivalente é exclusiva de administradores autorizados e não é uma ação pública do profissional.
+`POST /admin/pessoas/:id/assinatura` registra o período pago. O valor é determinado pelo servidor. A repetição da mesma referência para a mesma pessoa e plano não acrescenta outro período; outra pessoa ou plano não pode reutilizá-la. Cada renovação necessita de uma nova transação conferida e referência própria.
 
-Para automatizar também a liberação e a renovação do acesso, será necessário obter a elegibilidade de integração oferecida pelo PagBank para conta PJ e implementar conciliação de pagamentos e notificações autenticadas. A [documentação de autenticidade de notificações](https://developer.pagbank.com.br/reference/validacao-de-autenticidade) exige conferir a assinatura sobre o corpo original antes de atualizar recursos. Essa etapa não foi simulada no fluxo CPF.
+Como alternativa no servidor:
 
-Documentação consultada em 31/10/2026. Nenhuma conta, plano real ou cobrança foi criado por esta implementação.
+```text
+node scripts/ativar-assinatura.js --email pessoa@exemplo.com --plano mensal --referencia ID_PAGAMENTO --confirmar
+```
+
+Use `--plano anual` para o anual. O comando não consulta o gateway. **Registrar um pagamento concede acesso e não efetua cobrança.**
+
+## Cancelar a renovação e enviar a confirmação
+
+1. O profissional registra o pedido na área de assinatura; o painel exibe cancelamento solicitado.
+2. O responsável localiza a assinatura correta no PagBank, efetiva o cancelamento da recorrência e confere seu resultado.
+3. Só então confirma no painel administrativo, informando uma referência e marcando que a ação no gateway foi conferida.
+4. A aplicação registra a confirmação e uma mensagem na outbox na mesma transação. Um worker envia o e-mail automaticamente pelo Resend quando a configuração está válida.
+
+A confirmação administrativa usa `POST /admin/pessoas/:id/cancelamento`:
+
+```json
+{"referencia":"ID_CANCELAMENTO","confirmado_no_pagbank":true}
+```
+
+O acesso existente é mantido até o vencimento. Uma repetição com a mesma referência não cria outro evento de e-mail; uma referência diferente após a confirmação é recusada. `email_confirmacao: "pendente"` informa a situação da fila, sem afirmar entrega. Retentativas e configuração estão em [E-mail e privacidade](EMAIL-PRIVACIDADE.md).
+
+O pedido no aplicativo e a confirmação local não enviam uma ordem de cancelamento ao PagBank. A ação manual no gateway é indispensável. Sair da conta, bloquear acesso, expirar o período ou conceder gratuidade também não interrompe a recorrência. Cancelamento não exclui dados, não executa estorno e não equivale a um pedido de exclusão.
+
+## Nova contratação após cancelamento
+
+Depois do cancelamento confirmado, o profissional pode abrir nova contratação pelo aplicativo. Confira se o novo pagamento pertence à nova recorrência e se a anterior está encerrada. No registro administrativo, confirme expressamente:
+
+```json
+{"plano":"mensal","referencia":"ID_NOVO_PAGAMENTO","nova_assinatura":true}
+```
+
+A alternativa CLI acrescenta `--nova-assinatura`. Sem a confirmação, o registro depois de um cancelamento é recusado; a opção também é recusada se não houver cancelamento anterior confirmado. O registro válido limpa o estado de cancelamento e preserva o período de acesso já existente. Esse fluxo evita tratar uma renovação antiga como prova de uma nova contratação.
+
+## Administração e gratuidade permanente
+
+`GET /admin/pessoas` e `GET /admin/pessoas/:id` permitem consultar pessoas e histórico de ativações, sem listar suas demandas. `PATCH /admin/pessoas/:id/acesso` bloqueia ou desbloqueia acesso profissional e não cancela cobranças. Todas as rotas administrativas exigem um administrador ativo; o cadastro público nunca concede esse papel.
+
+A gratuidade permanente é concedida somente pelo operador via `scripts/conceder-acesso-permanente.js`, com uma conta profissional e um administrador ativo existentes. Uma assinatura paga anterior precisa estar cancelada e confirmada antes. O comando está documentado no [README](../README.md); ele não opera o PagBank.
+
+A versão administrativa anterior já possuía publicação ativa no último estado informado. A publicação dos novos fluxos de primeiro acesso, cancelamento, e-mail e privacidade deve ser conferida pelo commit efetivamente ativo; esta documentação descreve a fonte atual e não comprova um novo deploy.
+
+Para automatizar a conciliação, será preciso uma integração elegível e validada, incluindo autenticação das notificações, antes de liberar acesso por eventos do gateway. Não há simulação dessa automação no fluxo atual. Documentação oficial de pagamentos consultada em 01/11/2026.

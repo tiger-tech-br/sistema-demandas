@@ -7,15 +7,16 @@ async function buscarPorEmail(email) {
     return resultado.rows[0];
 }
 
-async function criarUsuarioComSessao({ nome, email, senhaHash }, sessao) {
+async function criarUsuarioComSessao({ nome, email, senhaHash, termosVersao }, sessao) {
     await inicializarBanco();
     const client = await db.connect();
     try {
         await client.query("BEGIN");
         const resultado = await client.query(`
-            INSERT INTO usuarios (nome, email, senha_hash, papel) VALUES ($1, $2, $3, 'profissional')
+            INSERT INTO usuarios (nome, email, senha_hash, papel, termos_versao, termos_aceitos_em)
+            VALUES ($1, $2, $3, 'profissional', $4, CASE WHEN $4::varchar(30) IS NOT NULL THEN CURRENT_TIMESTAMP ELSE NULL END)
             RETURNING *, CURRENT_TIMESTAMP AS agora
-        `, [nome, email, senhaHash]);
+        `, [nome, email, senhaHash, termosVersao]);
         const usuario = resultado.rows[0];
         await client.query("INSERT INTO sessoes (token_hash, usuario_id, expira_em) VALUES ($1, $2, $3)",
             [sessao.tokenHash, usuario.id, sessao.expiraEm]);
@@ -29,10 +30,27 @@ async function criarUsuarioComSessao({ nome, email, senhaHash }, sessao) {
     }
 }
 
-async function criarSessao(usuarioId, sessao) {
+async function criarSessao(usuarioId, sessao, senhaHashVerificado) {
+    if (typeof senhaHashVerificado !== "string") return null;
     await inicializarBanco();
-    await db.query("INSERT INTO sessoes (token_hash, usuario_id, expira_em) VALUES ($1, $2, $3)",
-        [sessao.tokenHash, usuarioId, sessao.expiraEm]);
+    const client = await db.connect();
+    try {
+        await client.query("BEGIN");
+        // O reset usa o mesmo bloqueio. Um hash verificado antes da troca
+        // nao pode autorizar uma sessao criada depois da revogacao.
+        const usuario = (await client.query("SELECT *, CURRENT_TIMESTAMP AS agora FROM usuarios WHERE id = $1 FOR UPDATE", [usuarioId])).rows[0];
+        if (!usuario || usuario.senha_hash !== senhaHashVerificado) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+        await client.query("INSERT INTO sessoes (token_hash, usuario_id, expira_em) VALUES ($1, $2, $3)",
+            [sessao.tokenHash, usuarioId, sessao.expiraEm]);
+        await client.query("COMMIT");
+        return usuario;
+    } catch (erro) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw erro;
+    } finally { client.release(); }
 }
 
 async function buscarSessao(tokenHash) {

@@ -25,7 +25,7 @@ function protegerOrigem(req, res, next) {
         res.set("Access-Control-Allow-Credentials", "true");
         res.vary("Origin");
         res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-App-Client, X-Usuario-Id");
-        res.set("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, DELETE, OPTIONS");
+        res.set("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS");
     }
     if (mutacao && req.get("Sec-Fetch-Site") === "cross-site" && !origem) {
         return res.status(403).json({ mensagem: "Origem da requisicao nao permitida." });

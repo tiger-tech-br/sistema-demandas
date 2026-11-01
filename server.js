@@ -2,6 +2,7 @@ require("./config/env");
 
 const os = require("os");
 const app = require("./app");
+const { iniciarNotificacoes } = require("./services/notificacaoService");
 const PORT = process.env.PORT || 4000;
 
 function obterIpDaRede() {
@@ -21,6 +22,7 @@ function obterIpDaRede() {
 }
 
 app.listen(PORT, "0.0.0.0", () => {
+    iniciarNotificacoes();
     console.log(`🌐 Local: http://localhost:${PORT}`);
     console.log(`📡 Rede : http://${obterIpDaRede()}:${PORT}`);
 });

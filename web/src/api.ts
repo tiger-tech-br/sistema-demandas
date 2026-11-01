@@ -13,6 +13,7 @@ type CapacitorRuntime = {
 declare global { interface Window { Capacitor?: CapacitorRuntime } }
 
 const TOKEN_KEY = 'demandas-sessao-android';
+const ROTAS_ACESSO_PUBLICO = ['/auth/login', '/auth/cadastro', '/auth/me', '/auth/esqueci-senha', '/auth/redefinir-senha', '/privacidade/politica'];
 export const android = Boolean(window.Capacitor) || location.protocol === 'capacitor:';
 const BASE = android ? (import.meta.env.VITE_API_BASE_URL || 'https://sistema-demandas-production.up.railway.app').replace(/\/$/, '') : '';
 let token: string | null = null;
@@ -59,7 +60,7 @@ export async function api<T>(caminho: string, method = 'GET', dados?: unknown): 
   if (dados !== undefined) headers['Content-Type'] = 'application/json';
   if (android) headers['X-App-Client'] = 'android';
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (usuarioId && !['/auth/login', '/auth/cadastro', '/auth/me'].includes(caminho)) headers['X-Usuario-Id'] = String(usuarioId);
+  if (usuarioId && !ROTAS_ACESSO_PUBLICO.includes(caminho)) headers['X-Usuario-Id'] = String(usuarioId);
   let resposta: Response;
   try {
     resposta = await fetch(`${BASE}${caminho}`, { method, headers, credentials: android ? 'omit' : 'same-origin', cache: 'no-store', ...(dados !== undefined ? { body: JSON.stringify(dados) } : {}) });
@@ -67,7 +68,7 @@ export async function api<T>(caminho: string, method = 'GET', dados?: unknown): 
   const corpo = await resposta.json().catch(() => ({}));
   if (!resposta.ok) {
     const erro = new ApiError(corpo.mensagem || 'Não foi possível concluir. Tente novamente.', resposta.status, corpo.codigo, corpo.assinatura);
-    if (geracao === versao && !['/auth/login', '/auth/cadastro'].includes(caminho)) {
+    if (geracao === versao && (!ROTAS_ACESSO_PUBLICO.includes(caminho) || caminho === '/auth/me')) {
       if (resposta.status === 401) window.dispatchEvent(new CustomEvent('demandas:sem-sessao', { detail: erro.message }));
       if (resposta.status === 402 && corpo.assinatura) window.dispatchEvent(new CustomEvent('demandas:assinatura', { detail: corpo.assinatura }));
       if (resposta.status === 403 && corpo.codigo === 'ACESSO_BLOQUEADO') window.dispatchEvent(new CustomEvent('demandas:acesso-bloqueado', { detail: erro.message }));

@@ -1,9 +1,12 @@
 const express = require("express");
 const path = require("node:path");
 const authRoutes = require("./routes/authRoutes");
+const passwordRoutes = require("./routes/passwordRoutes");
 const demandaRoutes = require("./routes/demandaRoutes");
 const cobrancaRoutes = require("./routes/cobrancaRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const privacidadeRoutes = require("./routes/privacidadeRoutes");
+const adminPrivacidadeRoutes = require("./routes/adminPrivacidadeRoutes");
 const { protegerOrigem } = require("./middleware/origem");
 const { obterPlanos } = require("./services/assinaturaService");
 
@@ -14,18 +17,23 @@ if (Number.isInteger(proxyHops) && proxyHops >= 0 && proxyHops <= 5) app.set("tr
 
 app.use((req, res, next) => {
     res.set("X-Content-Type-Options", "nosniff");
-    res.set("Referrer-Policy", "same-origin");
+    res.set("Referrer-Policy", "no-referrer");
+    res.set("X-Frame-Options", "DENY");
+    res.set("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
     next();
 });
-app.use(["/auth", "/demandas", "/planos", "/cobranca", "/admin"], (req, res, next) => {
+app.use(["/auth", "/demandas", "/planos", "/cobranca", "/admin", "/privacidade"], (req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
 }, protegerOrigem);
 app.use(express.json({ limit: "16kb" }));
+app.use("/auth", passwordRoutes);
 app.use("/auth", authRoutes);
 app.get("/planos", (req, res) => res.json(obterPlanos()));
 app.use("/demandas", demandaRoutes);
 app.use("/cobranca", cobrancaRoutes);
+app.use("/privacidade", privacidadeRoutes);
+app.use("/admin/privacidade", adminPrivacidadeRoutes);
 app.use("/admin", adminRoutes);
 const frontend = path.join(__dirname, "web", "dist");
 app.use(express.static(frontend));

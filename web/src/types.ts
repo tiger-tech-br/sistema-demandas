@@ -1,10 +1,14 @@
-export type Usuario = { id: number; nome: string; email: string; papel: 'profissional' | 'admin'; bloqueado: boolean };
+export type Usuario = { id: number; nome: string; email: string; papel: 'profissional' | 'admin'; bloqueado: boolean; politica_aceita: boolean; boas_vindas_vistas: boolean };
 export type Assinatura = {
-  status: 'teste' | 'ativa' | 'expirada';
+  status: 'teste' | 'ativa' | 'expirada' | 'gratuita';
   plano: 'mensal' | 'anual' | null;
   teste_expira_em: string;
-  acesso_ate: string;
-  dias_restantes: number;
+  acesso_permanente: boolean;
+  acesso_ate: string | null;
+  dias_restantes: number | null;
+  renovacao_status: 'sem_assinatura' | 'ativa' | 'cancelamento_solicitado' | 'cancelada';
+  cancelamento_solicitado_em: string | null;
+  cancelamento_confirmado_em: string | null;
 };
 export type Conta = { usuario: Usuario; assinatura: Assinatura; token?: string };
 export type Plano = { id: 'mensal' | 'anual'; nome: string; valor_centavos: number; periodicidade: 'mes' | 'ano' };
@@ -25,7 +29,9 @@ export type Demanda = {
   concluida: boolean;
 };
 export type NovaDemanda = Omit<Demanda, 'id'>;
-export type Visao = 'dashboard' | 'demandas' | 'assinatura' | 'conta' | 'admin';
+export type Visao = 'dashboard' | 'demandas' | 'assinatura' | 'conta' | 'admin' | 'privacidade';
+export type Politica = { versao: string; responsavel: string; contato: string; privacidade: { titulo: string; texto: string }[]; termos: { titulo: string; texto: string }[] };
+export type SolicitacaoPrivacidade = { id: number; tipo: 'acesso' | 'correcao' | 'exclusao' | 'outro'; descricao: string; status: 'pendente' | 'respondida'; criado_em: string; resposta: string | null; respondido_em: string | null; nome?: string; email?: string };
 export type PessoaAssinante = {
   id: number;
   nome: string;
@@ -42,7 +48,7 @@ export type AtivacaoAssinatura = {
   acesso_ate: string;
   ativado_em: string;
 };
-export type ResumoPessoas = { total: number; em_teste: number; ativas: number; expiradas: number; bloqueadas: number };
+export type ResumoPessoas = { total: number; em_teste: number; ativas: number; gratuitas: number; expiradas: number; bloqueadas: number };
 export const REGIONAIS = ['ABC', 'Campinas', 'Sorocaba', 'Baixada Santista', 'Americana', 'Nacional'];
 
 export function diasAte(data: string) {
@@ -59,7 +65,8 @@ export function statusDemanda(demanda: Demanda) {
   return { label: 'Em andamento', classe: 'progress' };
 }
 
-export function dataFormatada(valor: string, hora = false) {
+export function dataFormatada(valor: string | null, hora = false) {
+  if (!valor) return 'Sem prazo de expiração';
   const data = valor.length === 10 ? new Date(`${valor}T12:00:00`) : new Date(valor);
   return hora ? data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : data.toLocaleDateString('pt-BR');
 }

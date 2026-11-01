@@ -3,6 +3,7 @@ const { criarHash, verificarSenha } = require("../security/senha");
 const { novaSessao, definirCookie, obterToken, hashToken } = require("../security/sessao");
 const { clienteAndroid } = require("../middleware/origem");
 const { obterAssinatura } = require("../services/assinaturaService");
+const { VERSAO_POLITICA } = require("../services/privacidadeService");
 
 function validarCredenciais(body, cadastro = false) {
     if (!body || typeof body !== "object" || Array.isArray(body)) {
@@ -22,7 +23,9 @@ function validarCredenciais(body, cadastro = false) {
 
 function respostaConta(req, usuario, sessao) {
     const resposta = {
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel, bloqueado: Boolean(usuario.bloqueado_em) },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel, bloqueado: Boolean(usuario.bloqueado_em),
+            politica_aceita: Boolean(usuario.termos_aceitos_em) && usuario.termos_versao === VERSAO_POLITICA,
+            boas_vindas_vistas: Boolean(usuario.boas_vindas_em) },
         assinatura: obterAssinatura(usuario, usuario.agora)
     };
     if (sessao && clienteAndroid(req)) resposta.token = sessao.token;
@@ -37,12 +40,16 @@ async function revogarSessaoAnterior(req) {
 async function cadastrar(req, res, next) {
     const erroValidacao = validarCredenciais(req.body, true);
     if (erroValidacao) return res.status(400).json({ mensagem: erroValidacao });
+    if (req.body.aceite_termos !== true || req.body.versao_termos !== VERSAO_POLITICA) {
+        return res.status(400).json({ codigo: "ACEITE_NECESSARIO", mensagem: "Leia e aceite os Termos de Uso e a Politica de Privacidade atuais para criar sua conta." });
+    }
     try {
         const sessao = novaSessao();
         const usuario = await authModel.criarUsuarioComSessao({
             nome: req.body.nome.trim(),
             email: req.body.email.trim().toLowerCase(),
-            senhaHash: await criarHash(req.body.senha)
+            senhaHash: await criarHash(req.body.senha),
+            termosVersao: VERSAO_POLITICA
         }, sessao);
         await revogarSessaoAnterior(req);
         definirCookie(res, sessao.token);
@@ -61,10 +68,11 @@ async function login(req, res, next) {
         const senhaCorreta = await verificarSenha(req.body.senha, usuario?.senha_hash);
         if (!usuario || !senhaCorreta) return res.status(401).json({ mensagem: "E-mail ou senha incorretos." });
         const sessao = novaSessao();
-        await authModel.criarSessao(usuario.id, sessao);
+        const usuarioAtual = await authModel.criarSessao(usuario.id, sessao, usuario.senha_hash);
+        if (!usuarioAtual) return res.status(401).json({ mensagem: "E-mail ou senha incorretos." });
         await revogarSessaoAnterior(req);
         definirCookie(res, sessao.token);
-        return res.json(respostaConta(req, usuario, sessao));
+        return res.json(respostaConta(req, usuarioAtual, sessao));
     } catch (erro) {
         return next(erro);
     }

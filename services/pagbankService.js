@@ -44,6 +44,13 @@ function planoValido(plano) {
     return typeof plano === "string" && Object.hasOwn(VARIAVEIS_POR_PLANO, plano);
 }
 
+function podeContratar(assinatura) {
+    // O vencimento local nao significa que o mandato recorrente no PagBank acabou.
+    // Exigir o cancelamento confirmado evita duas cobrancas recorrentes paralelas.
+    return Boolean(assinatura) && !assinatura.acesso_permanente &&
+        (!assinatura.plano || assinatura.renovacao_status === "cancelada");
+}
+
 function obterStatusCobranca(assinatura, ambiente = process.env) {
     const planos = Object.keys(VARIAVEIS_POR_PLANO).map((id) => ({
         id,
@@ -56,7 +63,7 @@ function obterStatusCobranca(assinatura, ambiente = process.env) {
         modo: "link_recorrente",
         disponivel,
         confirmacao_automatica: false,
-        pode_assinar: assinatura?.status === "expirada" && disponivel,
+        pode_assinar: podeContratar(assinatura) && disponivel,
         mensagem: disponivel
             ? "Pague no ambiente seguro do PagBank. A liberação do acesso ocorre após conferência do pagamento."
             : "A contratação dos planos ainda não está disponível. Entre em contato com o responsável pelo sistema.",
@@ -68,5 +75,6 @@ module.exports = {
     validarLinkPagBank,
     obterLinkDoPlano,
     planoValido,
+    podeContratar,
     obterStatusCobranca
 };

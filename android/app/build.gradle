@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+def releaseSigningPropertiesFile = rootProject.file('keystore/keystore.properties')
+def releaseSigningProperties = new Properties()
+if (releaseSigningPropertiesFile.isFile()) {
+    releaseSigningPropertiesFile.withInputStream { releaseSigningProperties.load(it) }
+}
+
 android {
     namespace = "com.viviani.sistemademandas"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +13,8 @@ android {
         applicationId "com.viviani.sistemademandas"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
-        versionName "1.3"
+        versionCode 5
+        versionName "1.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,20 +22,45 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (releaseSigningPropertiesFile.isFile()) {
+                storeFile rootProject.file(releaseSigningProperties.getProperty('storeFile'))
+                storePassword releaseSigningProperties.getProperty('storePassword')
+                keyAlias releaseSigningProperties.getProperty('keyAlias')
+                keyPassword releaseSigningProperties.getProperty('keyPassword')
+            }
+        }
+    }
     buildTypes {
         release {
+            debuggable false
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
 }
 
-tasks.register('copyCurrentWebAssets', Copy) {
+tasks.register('copyCurrentWebAssets', Sync) {
     from "${rootProject.projectDir}/../web/dist"
     into "${projectDir}/src/main/assets/public"
     doFirst {
         if (!file("${rootProject.projectDir}/../web/dist/index.html").isFile()) {
             throw new GradleException("A interface web ainda nao foi compilada. Execute npm run build na raiz antes de gerar o APK.")
+        }
+    }
+}
+
+tasks.matching { it.name == 'preReleaseBuild' }.configureEach {
+    doFirst {
+        if (!releaseSigningPropertiesFile.isFile()) {
+            throw new GradleException('Assinatura de producao ausente: configure android/keystore/keystore.properties conforme docs/ANDROID-RELEASE.md.')
+        }
+        ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].each { property ->
+            if (!releaseSigningProperties.getProperty(property)) {
+                throw new GradleException("Propriedade de assinatura de producao ausente: ${property}.")
+            }
         }
     }
 }

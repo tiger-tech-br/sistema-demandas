@@ -56,15 +56,22 @@ test("configuração ausente ou inválida não oferece pagamento nem simula conf
     ]);
 });
 
-test("contratação fica disponível após expirar, preservando teste e assinatura ativa", () => {
+test("contratacao permite o teste e impede duplicar cobranca recorrente ativa", () => {
     const ambiente = { PAGBANK_LINK_MENSAL: "https://pag.ae/mensal" };
 
-    for (const status of ["teste", "ativa", undefined]) {
-        const cobranca = obterStatusCobranca({ status }, ambiente);
+    for (const assinatura of [
+        { status: "ativa", plano: "mensal", renovacao_status: "ativa" },
+        { status: "expirada", plano: "anual", renovacao_status: "ativa" },
+        { status: "expirada", plano: "mensal", renovacao_status: "cancelamento_solicitado" },
+        { status: "gratuita", plano: null, acesso_permanente: true }
+    ]) {
+        const cobranca = obterStatusCobranca(assinatura, ambiente);
         assert.equal(cobranca.disponivel, true);
         assert.equal(cobranca.pode_assinar, false);
         assert.equal(cobranca.confirmacao_automatica, false);
     }
 
-    assert.equal(obterStatusCobranca({ status: "expirada" }, ambiente).pode_assinar, true);
+    for (const assinatura of [{ status: "teste", plano: null }, { status: "expirada", plano: null }, { status: "expirada", plano: "anual", renovacao_status: "cancelada" }]) {
+        assert.equal(obterStatusCobranca(assinatura, ambiente).pode_assinar, true);
+    }
 });
