@@ -27,9 +27,10 @@ export type Demanda = {
   assunto: string;
   data_vencimento: string;
   concluida: boolean;
+  excluida_em?: string | null;
 };
-export type NovaDemanda = Omit<Demanda, 'id'>;
-export type Visao = 'dashboard' | 'demandas' | 'assinatura' | 'conta' | 'admin' | 'privacidade';
+export type NovaDemanda = Omit<Demanda, 'id' | 'excluida_em'>;
+export type Visao = 'dashboard' | 'demandas' | 'lixeira' | 'assinatura' | 'conta' | 'admin' | 'privacidade';
 export type Politica = { versao: string; responsavel: string; contato: string; privacidade: { titulo: string; texto: string }[]; termos: { titulo: string; texto: string }[] };
 export type SolicitacaoPrivacidade = { id: number; tipo: 'acesso' | 'correcao' | 'exclusao' | 'outro'; descricao: string; status: 'pendente' | 'respondida'; criado_em: string; resposta: string | null; respondido_em: string | null; nome?: string; email?: string };
 export type PessoaAssinante = {

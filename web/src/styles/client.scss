@@ -1,0 +1,156 @@
+/* Leitura e ações do painel de contas individuais. */
+.app-shell.app-shell--client {
+  font-size: 16px;
+
+  .page-header p, .page p, .empty-state p, .notice, .inline-error, .trash-confirm-description { font-size: 16px; line-height: 1.7; }
+  .page-header h1 { font-size: 32px; }
+  .page-header .eyebrow { font-size: 12px; }
+  .panel-head h2 { font-size: 19px; line-height: 1.4; }
+  .panel-head { flex-wrap: wrap; gap: 12px; }
+  .small-text, .page-footnote, .workspace-footer { font-size: 14px; line-height: 1.65; }
+  .primary-btn, .ghost-btn, .text-link { font-size: 16px; }
+  .metric-card > div > span { font-size: 14px; line-height: 1.5; }
+  .metric-card { min-width: 0; }
+  .metric-card > div { min-width: 0; }
+  .trial-banner > span, .trial-banner p, .trial-banner button { font-size: 15px; line-height: 1.6; }
+  .deadline-notice strong, .all-clear strong { font-size: 16px; line-height: 1.5; }
+  .deadline-notice p, .all-clear p, .routine-card p, .overview-bottom p { font-size: 15px; line-height: 1.7; }
+  .nav-item { font-size: 16px; }
+  .nav-caption { font-size: 11px; }
+  .sidebar-tip p, .sidebar-tip button { font-size: 14px; line-height: 1.7; }
+  .sidebar-tip strong, .sidebar-profile strong { font-size: 15px; }
+  .sidebar-profile small, .workspace-name small, .top-profile small { font-size: 13px; }
+  .top-profile strong, .workspace-name { font-size: 16px; }
+  .count-badge { font-size: 14px; }
+  .filters label, .form-grid label { font-size: 16px; }
+  .filters input, .filters select, .form-grid input, .form-grid select, textarea { font-size: 16px; }
+  .demanda-table th { font-size: 14px; }
+  .demanda-table time { font-size: 16px; }
+  .demanda-table td, .compact td, .beneficiary-cell strong, .regional-cell { font-size: 16px; }
+  .beneficiary-cell strong, .beneficiary-cell small { white-space: normal; overflow-wrap: anywhere; }
+  .beneficiary-cell small { font-size: 14px; line-height: 1.55; }
+  .demand-number, .compact .demand-number { font-size: 15px; overflow-wrap: anywhere; white-space: normal; }
+  .status, .compact .status { font-size: 14px; line-height: 1.4; }
+  .table-action, .compact .table-action, .finished-label { font-size: 14px; }
+  .table-action { min-height: 42px; }
+  .demanda-table .action-cell { padding-left: 18px; }
+  .demand-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .table-action--delete { color: #b44949; background: #fff5f4; border: 1px solid #f2d8d5; }
+  .table-action--delete:hover { color: #983b3b; background: #fce9e7; border-color: #e9bbb7; }
+  .compact .table-action--delete .delete-action-label { display: none; }
+  .empty-state strong { font-size: 18px; }
+  .plan-description, .plan-period, .plan-card li, .billing-explanation p, .account-details span, .account-note p { font-size: 15px; }
+  .billing-explanation strong, .account-identity p, .account-details strong, .account-details p { font-size: 16px; }
+  .account-identity p, .account-details strong { overflow-wrap: anywhere; }
+  .privacy-note, .privacy-actions p, .privacy-description, .privacy-response p, .privacy-export > p, .policy-copy p { font-size: 16px; }
+  .privacy-form > small, .privacy-request time, .privacy-response small { font-size: 14px; }
+  .privacy-request-heading > strong, .policy-copy h4 { font-size: 16px; }
+  .privacy-person, .privacy-response > strong { font-size: 15px; }
+  .renewal-panel p, .renewal-confirm strong { font-size: 16px; }
+  .demand-modal > p { font-size: 16px; line-height: 1.7; }
+
+  .danger-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px;
+    padding: 11px 16px; border: 1px solid #b84c4c; border-radius: 9px; background: #b84c4c;
+    color: white; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; line-height: 1.4;
+  }
+  .danger-btn:hover:not(:disabled) { background: #a33e3e; border-color: #a33e3e; }
+  .danger-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .demand-bulk-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; padding: 15px; border: 1px solid #e1ebf1; border-radius: 8px; background: #f7fbfd; }
+  .demand-bulk-actions > div { min-width: 0; flex: 1; }
+  .demand-bulk-actions > .danger-btn { flex-shrink: 0; }
+  .bulk-select-all { display: flex; flex-direction: row; align-items: center; gap: 10px; font-size: 16px; line-height: 1.5; cursor: pointer; }
+  .bulk-select-all input { width: 18px; min-width: 18px; height: 18px; min-height: 18px; padding: 0; margin: 0; flex-shrink: 0; accent-color: #009da6; }
+  .bulk-select-all strong { font-weight: 600; color: #537d91; }
+  .demand-bulk-actions p { margin: 7px 0 0; color: #788da2; font-size: 14px; line-height: 1.6; }
+  .trash-page .page-header { flex-wrap: wrap; align-items: flex-start; }
+  .trash-page .page-header > div { min-width: 0; }
+  .trash-page .page-header p { max-width: 620px; }
+  .trash-notice { display: flex; align-items: flex-start; gap: 12px; background: #edf7fa; color: #58778d; border-color: #dcecf1; margin-bottom: 20px; }
+  .trash-notice > svg { flex-shrink: 0; margin-top: 3px; color: #399ca3; }
+  .trash-notice p { margin: 0; }
+  .trash-panel { padding: 24px; }
+  .trash-refresh { font-size: 14px; padding: 8px 11px; min-height: 38px; }
+  .trash-list { display: flex; flex-direction: column; }
+  .trash-item { display: flex; align-items: flex-start; gap: 16px; padding: 22px 0; border-top: 1px solid #e6eef3; }
+  .trash-item:last-child { padding-bottom: 2px; }
+  .trash-item-icon { display: grid; place-items: center; width: 43px; height: 45px; flex-shrink: 0; border-radius: 12px; background: #f3f6f9; color: #8ca0b2; }
+  .trash-item-content { flex: 1; min-width: 0; }
+  .trash-item-heading { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .trash-item-heading strong { font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
+  .trash-item-content > p { margin: 6px 0 10px; color: #71879f; overflow-wrap: anywhere; }
+  .trash-item-meta { display: flex; gap: 7px 18px; flex-wrap: wrap; color: #7e91a7; font-size: 14px; line-height: 1.6; }
+  .restore-btn { margin-left: auto; flex-shrink: 0; min-height: 42px; font-size: 15px; }
+  .trash-confirm-modal { width: min(510px, calc(100% - 28px)); }
+  .modal-icon--danger { background: #fceeed; color: #b84c4c; }
+  .trash-confirm-description { color: #6c8098; margin: 14px 0 24px; overflow-wrap: anywhere; }
+  .trash-confirm-description p + p { margin-top: 12px; }
+  .trash-confirm-description strong { color: #2c4666; }
+  .trash-confirm-modal .modal-footer { flex-wrap: wrap; gap: 10px; }
+  .trash-confirm-modal .modal-footer > button { min-height: 44px; }
+}
+
+@media (max-width: 780px) {
+  .app-shell.app-shell--client {
+    .page-header h1 { font-size: 29px; }
+    .page-header .eyebrow { font-size: 11px; }
+    .page-header p { font-size: 15px; }
+    .panel-head h2 { font-size: 17px; }
+    .panel-head .text-link, .filter-panel .panel-head .text-link { font-size: 14px; }
+    .primary-btn, .ghost-btn, .text-link, .danger-btn { font-size: 15px; }
+    .page-header > .primary-btn { font-size: 0; }
+    .metric-card > div > span { font-size: 14px; }
+    .metric-card { min-height: 96px; align-items: flex-start; }
+    .metric-card > div { flex: 1; }
+    .metric-card strong { font-size: 29px; }
+    .trial-banner > span, .trial-banner p, .trial-banner button { font-size: 14px; }
+    .page-footnote, .small-text, .workspace-footer { font-size: 13px; }
+    .mobile-bottom-nav button { font-size: 12px; padding: 0 5px; min-height: 47px; line-height: 1.3; }
+    .mobile-bottom-nav { padding-left: 8px; padding-right: 8px; }
+    .workspace-footer { padding-bottom: 96px; }
+    .page-header > .danger-btn { padding: 10px 13px; }
+    .demand-bulk-actions { align-items: stretch; flex-direction: column; gap: 16px; padding: 14px; }
+    .demand-bulk-actions > .danger-btn { align-self: flex-start; min-height: 44px; }
+    .demand-page .demanda-table td { font-size: 16px; }
+    .demand-page .demanda-table, .overview-table .demanda-table { width: 100%; min-width: 0; max-width: 100%; }
+    .demand-page .demanda-table tbody, .overview-table .demanda-table tbody { width: 100%; min-width: 0; max-width: 100%; }
+    .demand-page .demanda-table tr, .overview-table .demanda-table tr { width: 100%; min-width: 0; max-width: 100%; grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .demand-page .demanda-table td, .overview-table .demanda-table td { width: auto; min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+    .demand-page .beneficiary-cell, .overview-table .beneficiary-cell { min-width: 0; max-width: 100%; }
+    .demand-page .beneficiary-cell > span:last-child, .overview-table .beneficiary-cell > span:last-child { min-width: 0; max-width: 100%; }
+    .demand-page .demand-actions, .overview-table .demand-actions { min-width: 0; max-width: 100%; }
+    .demand-page .demanda-table td::before { font-size: 13px; }
+    .demand-page .beneficiary-cell strong { font-size: 17px; }
+    .demand-page .beneficiary-cell small { font-size: 15px; max-width: none; }
+    .demand-page .action-cell { grid-column: 1 / -1; }
+    .status, .compact .status { font-size: 14px; padding: 6px 9px; }
+    .status, .regional-cell { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+    .table-action, .compact .table-action { font-size: 14px; padding: 8px 11px; min-height: 42px; gap: 6px; }
+    .compact .table-action svg { width: 16px; }
+    .compact .table-action--delete .delete-action-label { display: inline; }
+    .overview-table .demanda-table { display: block; }
+    .overview-table .demanda-table thead { display: none; }
+    .overview-table .demanda-table tbody { display: block; padding: 0 15px; }
+    .overview-table .demanda-table tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); padding: 17px 0; border-top: 1px solid #e9f0f5; gap: 14px 10px; }
+    .overview-table .demanda-table td { display: block; border: 0; padding: 0; min-width: 0; font-size: 16px; }
+    .overview-table .demanda-table td::before { content: attr(data-label); display: block; color: #879ab0; font-size: 13px; margin-bottom: 6px; }
+    .overview-table .demanda-table td:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
+    .overview-table .demanda-table td:nth-child(2)::before, .overview-table .action-cell::before { display: none; }
+    .overview-table .beneficiary-cell { min-width: 0; }
+    .overview-table .beneficiary-cell strong { font-size: 17px; }
+    .overview-table .beneficiary-cell small { font-size: 15px; max-width: none; }
+    .overview-table .compact time { font-size: 16px; }
+    .overview-table .action-cell { grid-column: 1 / -1; }
+    .demand-page .demanda-table .action-cell, .overview-table .demanda-table .action-cell { padding: 13px 0 0; margin-top: 2px; border-top: 1px solid #edf2f6; }
+    .trash-panel { padding: 18px; }
+    .trash-item { flex-wrap: wrap; gap: 11px; padding: 19px 0; }
+    .trash-item-icon { width: 35px; height: 38px; border-radius: 10px; }
+    .trash-item-content { flex: 1; min-width: calc(100% - 50px); }
+    .trash-item-heading { gap: 6px 10px; }
+    .trash-item-meta { flex-direction: column; gap: 5px; }
+    .restore-btn { margin-left: 46px; }
+    .trash-refresh { min-height: 40px; padding: 8px; font-size: 14px; }
+    .trash-confirm-modal .modal-footer > button { flex: 1 1 100%; }
+    .trash-confirm-modal .modal-footer > .ghost-btn { order: 2; }
+  }
+}

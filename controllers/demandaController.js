@@ -116,6 +116,52 @@ async function listarDemandas(req, res, next) {
     }
 }
 
+async function listarLixeira(req, res, next) {
+    try {
+        const demandas = await demandaModel.listarLixeira(req.usuario.id);
+        return res.status(200).json(demandas);
+    } catch (erro) {
+        return next(erro);
+    }
+}
+
+async function restaurarDemanda(req, res, next) {
+    try {
+        const { id } = req.params;
+
+        if (!validarId(id)) {
+            return res.status(400).json({ mensagem: "ID invalido." });
+        }
+
+        const demanda = await demandaModel.restaurarDemanda(req.usuario.id, id);
+        if (!demanda) {
+            return res.status(404).json({ mensagem: "Demanda nao encontrada na lixeira." });
+        }
+
+        return res.status(200).json({ mensagem: "Demanda restaurada com sucesso.", demanda });
+    } catch (erro) {
+        return next(erro);
+    }
+}
+
+async function moverTodasParaLixeira(req, res, next) {
+    try {
+        const movidas = await demandaModel.moverTodasParaLixeira(req.usuario.id);
+        return res.status(200).json({ mensagem: "Demandas movidas para a lixeira.", movidas });
+    } catch (erro) {
+        return next(erro);
+    }
+}
+
+async function esvaziarLixeira(req, res, next) {
+    try {
+        const excluidas = await demandaModel.esvaziarLixeira(req.usuario.id);
+        return res.status(200).json({ mensagem: "Lixeira esvaziada com sucesso.", excluidas });
+    } catch (erro) {
+        return next(erro);
+    }
+}
+
 async function excluirDemanda(req, res, next) {
     try {
         const { id } = req.params;
@@ -130,7 +176,7 @@ async function excluirDemanda(req, res, next) {
             return res.status(404).json({ mensagem: "Demanda nao encontrada." });
         }
 
-        return res.status(200).json({ mensagem: "Demanda excluida com sucesso." });
+        return res.status(200).json({ mensagem: "Demanda movida para a lixeira." });
     } catch (erro) {
         return next(erro);
     }
@@ -203,6 +249,10 @@ module.exports = {
     criarDemanda,
     listarDemandas,
     excluirDemanda,
+    listarLixeira,
+    restaurarDemanda,
+    moverTodasParaLixeira,
+    esvaziarLixeira,
     atualizarDemanda,
     buscarDemandasVencendoAmanha
 };

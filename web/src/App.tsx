@@ -11,6 +11,7 @@ import Brand from './components/Brand';
 import AvisoPrazo from './components/AvisoPrazo';
 import Admin from './components/Admin';
 import Privacidade, { PoliticaModal } from './components/Privacidade';
+import Lixeira, { ConfirmacaoLixeira } from './components/Lixeira';
 
 const EVENTO_ABAS = 'demandas-conta-evento';
 function capturarRedefinicao() {
@@ -38,18 +39,22 @@ export default function App() {
   const [erroDemandas, setErroDemandas] = useState('');
   const [concluindo, setConcluindo] = useState<number | null>(null);
   const [modal, setModal] = useState(false);
+  const [demandaParaExcluir, setDemandaParaExcluir] = useState<Demanda | null>(null);
+  const [quantidadeExcluirTudo, setQuantidadeExcluirTudo] = useState<number | null>(null);
   const [avisoPrazo, setAvisoPrazo] = useState<Demanda[]>([]);
   const [saindo, setSaindo] = useState(false);
   const [atualizando, setAtualizando] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; erro: boolean } | null>(null);
   const contaRef = useRef<Conta | null>(null);
   const canalRef = useRef<BroadcastChannel | null>(null);
+  const pedidoDemandas = useRef(0);
   contaRef.current = conta;
 
   const limparTela = useCallback((mensagem = '') => {
+    pedidoDemandas.current++;
     void limparSessaoLocal();
     contaRef.current = null;
-    setConta(null); setDemandas([]); setCobranca(null); setModal(false); setAvisoPrazo([]); setConcluindo(null); setCarregando(false); setSaindo(false); setAtualizando(false); setErroDemandas(''); setAviso(null); setVisao('dashboard'); setAvisoAcesso(mensagem); setPronto(true);
+    setConta(null); setDemandas([]); setCobranca(null); setModal(false); setDemandaParaExcluir(null); setQuantidadeExcluirTudo(null); setAvisoPrazo([]); setConcluindo(null); setCarregando(false); setSaindo(false); setAtualizando(false); setErroDemandas(''); setAviso(null); setVisao('dashboard'); setAvisoAcesso(mensagem); setPronto(true);
   }, []);
 
   function notificarAbas() {
@@ -66,11 +71,14 @@ export default function App() {
       const assinatura = (event as CustomEvent<AssinaturaTipo>).detail;
       setConta(anterior => anterior ? { ...anterior, assinatura } : null);
       setModal(false);
-      if (assinatura.status === 'expirada') { setDemandas([]); setAvisoPrazo([]); setVisao('assinatura'); }
+      setDemandaParaExcluir(null);
+      setQuantidadeExcluirTudo(null);
+      if (assinatura.status === 'expirada') { pedidoDemandas.current++; setDemandas([]); setAvisoPrazo([]); setVisao('assinatura'); }
     };
     const acessoBloqueado = () => {
+      pedidoDemandas.current++;
       setConta(anterior => anterior ? { ...anterior, usuario: { ...anterior.usuario, bloqueado: true } } : null);
-      setDemandas([]); setAvisoPrazo([]); setModal(false); setCarregando(false);
+      setDemandas([]); setAvisoPrazo([]); setModal(false); setDemandaParaExcluir(null); setQuantidadeExcluirTudo(null); setCarregando(false);
     };
     const outraAba = () => limparTela('O acesso foi alterado em outra aba. Entre novamente para continuar.');
     const armazenamento = (event: StorageEvent) => { if (event.key === EVENTO_ABAS && event.newValue) outraAba(); };
@@ -101,24 +109,29 @@ export default function App() {
     return () => { ativo = false; window.removeEventListener('demandas:sem-sessao', semSessao); window.removeEventListener('demandas:assinatura', assinaturaMudou); window.removeEventListener('demandas:acesso-bloqueado', acessoBloqueado); window.removeEventListener('storage', armazenamento); canalRef.current?.close(); };
   }, [limparTela, redefinicao.presente]);
 
-  const carregarDemandas = useCallback(async () => {
+  const carregarDemandas = useCallback(async (mostrarAviso = true) => {
+    const pedido = ++pedidoDemandas.current;
     if (!contaRef.current || contaRef.current.usuario.papel === 'admin' || !contaRef.current.usuario.politica_aceita || contaRef.current.usuario.bloqueado || contaRef.current.assinatura.status === 'expirada') { setDemandas([]); setAvisoPrazo([]); setCarregando(false); return; }
     const geracao = geracaoSessao();
     setCarregando(true); setErroDemandas('');
     try {
       const lista = await api<Demanda[]>('/demandas');
-      if (geracao === geracaoSessao()) {
+      if (geracao === geracaoSessao() && pedido === pedidoDemandas.current) {
         setDemandas(lista);
-        setAvisoPrazo(lista.filter(item => !item.concluida && diasAte(item.data_vencimento) === 1));
+        const vencemAmanha = lista.filter(item => !item.concluida && diasAte(item.data_vencimento) === 1);
+        setAvisoPrazo(anteriores => mostrarAviso ? vencemAmanha : anteriores.filter(item => vencemAmanha.some(atual => atual.id === item.id)));
       }
     }
-    catch (error) { if (geracao === geracaoSessao()) setErroDemandas((error as Error).message); }
-    finally { if (geracao === geracaoSessao()) setCarregando(false); }
+    catch (error) { if (geracao === geracaoSessao() && pedido === pedidoDemandas.current) setErroDemandas((error as Error).message); }
+    finally { if (geracao === geracaoSessao() && pedido === pedidoDemandas.current) setCarregando(false); }
   }, []);
+
+  const recarregarAposLixeira = useCallback(() => carregarDemandas(false), [carregarDemandas]);
 
   useEffect(() => {
     if (!conta) return;
     if (conta.usuario.papel === 'admin' || conta.usuario.bloqueado) {
+      pedidoDemandas.current++;
       setDemandas([]); setAvisoPrazo([]); setCobranca(null); setCarregando(false);
       return;
     }
@@ -135,7 +148,7 @@ export default function App() {
     const geracao = geracaoSessao();
     await definindo;
     if (geracao !== geracaoSessao()) return;
-    setDemandas([]); setAvisoPrazo([]); setCobranca(null); setAvisoAcesso(''); setCarregando(dados.usuario.papel !== 'admin' && !dados.usuario.bloqueado && dados.assinatura.status !== 'expirada'); setConta(dados); setVisao(dados.usuario.papel === 'admin' ? 'admin' : dados.assinatura.status === 'expirada' ? 'assinatura' : 'dashboard'); notificarAbas();
+    setDemandas([]); setAvisoPrazo([]); setDemandaParaExcluir(null); setQuantidadeExcluirTudo(null); setCobranca(null); setAvisoAcesso(''); setCarregando(dados.usuario.papel !== 'admin' && !dados.usuario.bloqueado && dados.assinatura.status !== 'expirada'); setConta(dados); setVisao(dados.usuario.papel === 'admin' ? 'admin' : dados.assinatura.status === 'expirada' ? 'assinatura' : 'dashboard'); notificarAbas();
     if (!planos.length) void api<{ planos: Plano[] }>('/planos').then(resultado => setPlanos(resultado.planos)).catch(() => {});
   }
 
@@ -173,6 +186,25 @@ export default function App() {
     finally { if (geracao === geracaoSessao()) setConcluindo(null); }
   }
 
+  async function moverParaLixeira(demanda: Demanda) {
+    const geracao = geracaoSessao();
+    await api(`/demandas/${demanda.id}`, 'DELETE');
+    if (geracao !== geracaoSessao()) return;
+    setDemandas(anteriores => anteriores.filter(item => item.id !== demanda.id));
+    setAvisoPrazo(anteriores => anteriores.filter(item => item.id !== demanda.id));
+    setAviso({ texto: 'Demanda movida para a lixeira. Você pode restaurá-la por lá.', erro: false });
+    await recarregarAposLixeira();
+  }
+
+  async function moverTodasParaLixeira() {
+    const geracao = geracaoSessao();
+    const resultado = await api<{ movidas: number }>('/demandas/lixeira/todas', 'POST', {});
+    if (geracao !== geracaoSessao()) return;
+    setDemandas([]); setAvisoPrazo([]);
+    setAviso({ texto: resultado.movidas > 0 ? `${resultado.movidas} ${resultado.movidas === 1 ? 'demanda movida' : 'demandas movidas'} para a lixeira. Você pode restaurar por lá.` : 'Nenhuma demanda precisava ser movida. A lista foi atualizada.', erro: false });
+    await recarregarAposLixeira();
+  }
+
   async function atualizarAcesso() {
     if (atualizando) return;
     const geracao = geracaoSessao();
@@ -200,20 +232,24 @@ export default function App() {
   const precisaAceite = !admin && !conta.usuario.politica_aceita;
   const precisaBoasVindas = !admin && !bloqueado && !precisaAceite && !conta.usuario.boas_vindas_vistas && !conta.assinatura.acesso_permanente && conta.assinatura.status === 'teste' && !conta.assinatura.plano;
   const nova = () => { if (!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !carregando && conta.assinatura.status !== 'expirada') setModal(true); };
+  const solicitarExcluirTudo = () => { if (!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !carregando && concluindo === null && demandas.length > 0 && conta.assinatura.status !== 'expirada') { setDemandaParaExcluir(null); setQuantidadeExcluirTudo(demandas.length); } };
   const alterarAssinatura = (assinatura: AssinaturaTipo) => setConta(anterior => anterior ? { ...anterior, assinatura } : null);
   const pendentes = demandas.filter(item => !item.concluida && diasAte(item.data_vencimento) >= 0 && diasAte(item.data_vencimento) <= 3).length;
   return <AppShell conta={conta} visao={admin && visao !== 'conta' && visao !== 'privacidade' ? 'admin' : visao} navegar={setVisao} sair={() => void sair()} saindo={saindo} pendentes={pendentes}>
     {aviso && <div className={`toast ${aviso.erro ? 'toast--error' : ''}`} role={aviso.erro ? 'alert' : 'status'}>{aviso.erro ? <AlertCircle size={20}/> : <CheckCircle2 size={20}/>}<span>{aviso.texto}</span><button className="icon-btn" onClick={() => setAviso(null)} aria-label="Fechar aviso"><X size={16}/></button></div>}
     {admin && visao !== 'conta' && visao !== 'privacidade' && <Admin key={conta.usuario.id} planos={planos}/>}
     {bloqueado && visao !== 'conta' && visao !== 'privacidade' && visao !== 'assinatura' && <section className="panel blocked-access-panel" aria-labelledby="titulo-acesso-bloqueado"><span className="empty-icon"><ShieldAlert size={31}/></span><h1 id="titulo-acesso-bloqueado">Seu acesso está bloqueado</h1><p>Entre em contato com o responsável pelo sistema para conferir seu acesso. Sua conta e suas demandas permanecem salvas.</p><div><button className="ghost-btn" disabled={atualizando} onClick={() => void atualizarAcesso()}><RefreshCw size={17} className={atualizando ? 'spin' : ''}/>Atualizar acesso</button><button className="primary-btn" disabled={saindo} onClick={() => void sair()}><LogOut size={17}/>{saindo ? 'Saindo...' : 'Sair da conta'}</button></div></section>}
-    {!admin && !bloqueado && visao === 'dashboard' && <Dashboard conta={conta} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} nova={nova} navegar={setVisao} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>}
-    {!admin && !bloqueado && visao === 'demandas' && (conta.assinatura.status === 'expirada' ? <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando} alterar={alterarAssinatura}/> : <Demandas key={conta.usuario.id} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} nova={nova} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>)}
+    {!admin && !bloqueado && visao === 'dashboard' && <Dashboard conta={conta} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} excluir={setDemandaParaExcluir} nova={nova} navegar={setVisao} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>}
+    {!admin && !bloqueado && visao === 'demandas' && (conta.assinatura.status === 'expirada' ? <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando} alterar={alterarAssinatura}/> : <Demandas key={conta.usuario.id} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} excluir={setDemandaParaExcluir} excluirTudo={solicitarExcluirTudo} nova={nova} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>)}
+    {!admin && !bloqueado && visao === 'lixeira' && (conta.assinatura.status === 'expirada' ? <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando} alterar={alterarAssinatura}/> : <Lixeira key={conta.usuario.id} navegar={setVisao} aoAlterar={recarregarAposLixeira}/>)}
     {!admin && visao === 'assinatura' && <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando} alterar={alterarAssinatura}/>}
     {visao === 'conta' && <MinhaConta conta={conta}/>}
     {visao === 'privacidade' && <Privacidade key={conta.usuario.id} conta={conta}/>}
     {precisaAceite && visao !== 'privacidade' && <PoliticaModal obrigatoria fechar={() => {}} aceita={() => setConta(anterior => anterior ? { ...anterior, usuario: { ...anterior.usuario, politica_aceita: true } } : null)} sair={() => void sair()} gerenciarPrivacidade={() => setVisao('privacidade')}/>}
     {precisaBoasVindas && <BoasVindas conta={conta} cobranca={cobranca} concluir={() => setConta(anterior => anterior ? { ...anterior, usuario: { ...anterior.usuario, boas_vindas_vistas: true } } : null)}/>}
     {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && modal && <NovaDemandaModal salvar={salvar} fechar={() => setModal(false)}/>}
-    {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !modal && avisoPrazo.length > 0 && <AvisoPrazo demandas={avisoPrazo} fechar={() => setAvisoPrazo([])}/>}
+    {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !modal && demandaParaExcluir && <ConfirmacaoLixeira titulo="Mover demanda para a lixeira?" textoConfirmar="Mover para a lixeira" confirmar={() => moverParaLixeira(demandaParaExcluir)} fechar={() => setDemandaParaExcluir(null)}><p>A demanda <strong>#{demandaParaExcluir.numero_demanda}</strong>, de <strong>{demandaParaExcluir.beneficiario}</strong>, sairá da sua lista e dos lembretes de prazo.</p><p>Você poderá restaurá-la na lixeira antes de excluir definitivamente.</p></ConfirmacaoLixeira>}
+    {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !modal && !demandaParaExcluir && quantidadeExcluirTudo !== null && <ConfirmacaoLixeira titulo="Excluir todas as demandas?" textoConfirmar="Excluir tudo" confirmar={moverTodasParaLixeira} fechar={() => setQuantidadeExcluirTudo(null)}><p><strong>{quantidadeExcluirTudo} {quantidadeExcluirTudo === 1 ? 'demanda' : 'demandas'}</strong> da sua conta {quantidadeExcluirTudo === 1 ? 'será movida' : 'serão movidas'} para a lixeira. Isso inclui <strong>todas as demandas concluídas e as que estão fora dos filtros</strong> da lista.</p><p>Você poderá restaurá-las na lixeira. A exclusão definitiva só acontece ao esvaziar a lixeira.</p></ConfirmacaoLixeira>}
+    {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !modal && !demandaParaExcluir && quantidadeExcluirTudo === null && avisoPrazo.length > 0 && <AvisoPrazo demandas={avisoPrazo} fechar={() => setAvisoPrazo([])}/>}
   </AppShell>;
 }

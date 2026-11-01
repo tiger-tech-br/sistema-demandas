@@ -48,6 +48,12 @@ function demanda(numero) {
     };
 }
 
+async function criarDemandaLixeira(cookie, dados) {
+    const resposta = await requisicao("/demandas", { metodo: "POST", cookie, dados });
+    assert.equal(resposta.status, 201);
+    return resposta.corpo.demanda;
+}
+
 async function comRecuperacao(executar, { configurado = true } = {}) {
     const { criarServicoRedefinicao } = require("../services/passwordResetService");
     const mensagens = [];
@@ -781,5 +787,163 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
                 authModel.criarSessao = emitirSessaoOriginal;
             }
         });
+    });
+
+    await t.test("lixeira preserva a demanda, oculta listas e alertas e permite restaurar apenas a propria", async () => {
+        const pessoa = await cadastrar("Lixeira Restauracao", "lixeira-restauracao@example.invalid");
+        const outra = await cadastrar("Lixeira Isolada", "lixeira-isolada@example.invalid");
+        const criada = await criarDemandaLixeira(pessoa.cookie, { ...demanda("901"), excluida_em: "2000-01-01T00:00:00Z" });
+        const ativa = await criarDemandaLixeira(pessoa.cookie, demanda("902"));
+        const antes = (await db.query("SELECT * FROM demandas WHERE id = $1", [criada.id])).rows[0];
+        assert.equal(antes.excluida_em, null, "O cadastro nao deve aceitar uma data de exclusao fornecida pelo cliente.");
+        assert.equal((await db.query("SELECT excluida_em FROM demandas WHERE numero_demanda = '999'")).rows[0].excluida_em, null);
+
+        assert.equal((await requisicao(`/demandas/${criada.id}`, { metodo: "DELETE", cookie: outra.cookie })).status, 404);
+        assert.equal((await requisicao(`/demandas/${criada.id}`, { metodo: "DELETE", cookie: pessoa.cookie })).status, 200);
+        assert.equal((await requisicao(`/demandas/${criada.id}`, { metodo: "DELETE", cookie: pessoa.cookie })).status, 404);
+        const movida = (await db.query("SELECT * FROM demandas WHERE id = $1", [criada.id])).rows[0];
+        assert.ok(movida.excluida_em instanceof Date && Number.isFinite(movida.excluida_em.getTime()));
+        assert.deepEqual({ ...movida, excluida_em: null }, antes, "Mover para a lixeira deve preservar os dados da demanda.");
+
+        const normais = await requisicao("/demandas", { cookie: pessoa.cookie });
+        const alertas = await requisicao("/demandas/vencendo-amanha", { cookie: pessoa.cookie });
+        assert.equal(normais.status, 200);
+        assert.equal(alertas.status, 200);
+        assert.deepEqual(normais.corpo.map(item => item.id), [ativa.id]);
+        assert.deepEqual(alertas.corpo.map(item => item.id), [ativa.id]);
+        const lixeira = await requisicao("/demandas/lixeira", { cookie: pessoa.cookie });
+        assert.equal(lixeira.status, 200);
+        assert.deepEqual(lixeira.corpo.map(item => item.id), [criada.id]);
+        assert.ok(Number.isFinite(Date.parse(lixeira.corpo[0].excluida_em)));
+        assert.deepEqual((await requisicao("/demandas/lixeira", { cookie: outra.cookie })).corpo, []);
+        const exportacao = await requisicao("/privacidade/dados", { cookie: pessoa.cookie });
+        assert.equal(exportacao.status, 200);
+        const copiaExcluida = exportacao.corpo.demandas.find(item => item.id === criada.id);
+        assert.ok(copiaExcluida, "A exportacao de dados proprios deve incluir as demandas ainda retidas na lixeira.");
+        assert.ok(Number.isFinite(Date.parse(copiaExcluida.excluida_em)));
+
+        assert.equal((await requisicao(`/demandas/${criada.id}`, { metodo: "PUT", cookie: pessoa.cookie,
+            dados: { ...demanda("901"), assunto: "Alteracao indevida", excluida_em: null } })).status, 404);
+        assert.equal((await requisicao(`/demandas/${criada.id}/restaurar`, { metodo: "POST", cookie: outra.cookie,
+            dados: { usuario_id: pessoa.corpo.usuario.id } })).status, 404);
+        const restaurada = await requisicao(`/demandas/${criada.id}/restaurar`, { metodo: "POST", cookie: pessoa.cookie });
+        assert.equal(restaurada.status, 200);
+        assert.equal(restaurada.corpo.demanda.id, criada.id);
+        assert.equal(restaurada.corpo.demanda.excluida_em, null);
+        assert.deepEqual((await db.query("SELECT * FROM demandas WHERE id = $1", [criada.id])).rows[0], antes);
+        assert.deepEqual((await requisicao("/demandas/lixeira", { cookie: pessoa.cookie })).corpo, []);
+        assert.deepEqual((await requisicao("/demandas", { cookie: pessoa.cookie })).corpo.map(item => item.id).sort((a, b) => a - b), [criada.id, ativa.id].sort((a, b) => a - b));
+        assert.deepEqual((await requisicao("/demandas/vencendo-amanha", { cookie: pessoa.cookie })).corpo.map(item => item.id).sort((a, b) => a - b), [criada.id, ativa.id].sort((a, b) => a - b));
+        assert.equal((await requisicao(`/demandas/${criada.id}/restaurar`, { metodo: "POST", cookie: pessoa.cookie })).status, 404);
+        for (const idInvalido of ["abc", "0"]) {
+            assert.equal((await requisicao(`/demandas/${idInvalido}`, { metodo: "DELETE", cookie: pessoa.cookie })).status, 400);
+            assert.equal((await requisicao(`/demandas/${idInvalido}/restaurar`, { metodo: "POST", cookie: pessoa.cookie })).status, 400);
+        }
+    });
+
+    await t.test("esvaziar lixeira apaga fisicamente apenas as proprias excluidas e preserva ativas, outras contas e legado", async () => {
+        const pessoa = await cadastrar("Lixeira Exclusao", "lixeira-exclusao@example.invalid");
+        const outra = await cadastrar("Lixeira Outra Conta", "lixeira-outra-conta@example.invalid");
+        const primeira = await criarDemandaLixeira(pessoa.cookie, demanda("911"));
+        const segunda = await criarDemandaLixeira(pessoa.cookie, demanda("912"));
+        const ativa = await criarDemandaLixeira(pessoa.cookie, demanda("913"));
+        const alheia = await criarDemandaLixeira(outra.cookie, demanda("914"));
+        const ativaAlheia = await criarDemandaLixeira(outra.cookie, demanda("915"));
+        for (const [item, cookie] of [[primeira, pessoa.cookie], [segunda, pessoa.cookie], [alheia, outra.cookie]]) {
+            assert.equal((await requisicao(`/demandas/${item.id}`, { metodo: "DELETE", cookie })).status, 200);
+        }
+
+        const esvaziada = await requisicao("/demandas/lixeira", { metodo: "DELETE", cookie: pessoa.cookie,
+            dados: { usuario_id: outra.corpo.usuario.id, id: alheia.id } });
+        assert.equal(esvaziada.status, 200);
+        assert.equal(esvaziada.corpo.excluidas, 2);
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM demandas WHERE id = ANY($1::int[])", [[primeira.id, segunda.id]])).rows[0].n), 0);
+        const preservadas = (await db.query("SELECT id, excluida_em FROM demandas WHERE id = ANY($1::int[]) ORDER BY id", [[ativa.id, alheia.id, ativaAlheia.id]])).rows;
+        assert.deepEqual(preservadas.map(item => item.id), [ativa.id, alheia.id, ativaAlheia.id].sort((a, b) => a - b));
+        assert.equal(preservadas.find(item => item.id === ativa.id).excluida_em, null);
+        assert.notEqual(preservadas.find(item => item.id === alheia.id).excluida_em, null);
+        assert.equal(preservadas.find(item => item.id === ativaAlheia.id).excluida_em, null);
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM demandas WHERE numero_demanda = '999' AND usuario_id IS NULL")).rows[0].n), 1);
+        assert.deepEqual((await requisicao("/demandas/lixeira", { cookie: pessoa.cookie })).corpo, []);
+        assert.deepEqual((await requisicao("/demandas", { cookie: pessoa.cookie })).corpo.map(item => item.id), [ativa.id]);
+        assert.deepEqual((await requisicao("/demandas/lixeira", { cookie: outra.cookie })).corpo.map(item => item.id), [alheia.id]);
+        assert.deepEqual((await requisicao("/demandas", { cookie: outra.cookie })).corpo.map(item => item.id), [ativaAlheia.id]);
+        const repetida = await requisicao("/demandas/lixeira", { metodo: "DELETE", cookie: pessoa.cookie });
+        assert.equal(repetida.status, 200);
+        assert.equal(repetida.corpo.excluidas, 0);
+        assert.equal((await requisicao(`/demandas/${primeira.id}/restaurar`, { metodo: "POST", cookie: pessoa.cookie })).status, 404);
+    });
+
+    await t.test("lixeira exige sessao, conta profissional e acesso vigente antes de ler ou apagar dados", async () => {
+        const pessoa = await cadastrar("Lixeira Expirada", "lixeira-expirada@example.invalid");
+        const criada = await criarDemandaLixeira(pessoa.cookie, demanda("921"));
+        assert.equal((await requisicao(`/demandas/${criada.id}`, { metodo: "DELETE", cookie: pessoa.cookie })).status, 200);
+        const rotas = [
+            { caminho: "/demandas/lixeira", metodo: "GET" },
+            { caminho: "/demandas/lixeira", metodo: "DELETE" },
+            { caminho: `/demandas/${criada.id}/restaurar`, metodo: "POST" }
+        ];
+        for (const { caminho, metodo } of rotas) {
+            assert.equal((await requisicao(caminho, { metodo })).status, 401);
+            assert.equal((await requisicao(caminho, { metodo, cookie: admin.cookie })).status, 403);
+        }
+        await db.query("UPDATE usuarios SET teste_expira_em = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = $1", [pessoa.corpo.usuario.id]);
+        for (const { caminho, metodo } of rotas) {
+            assert.equal((await requisicao(caminho, { metodo, cookie: pessoa.cookie })).status, 402);
+        }
+        const preservada = (await db.query("SELECT excluida_em FROM demandas WHERE id = $1", [criada.id])).rows[0];
+        assert.notEqual(preservada.excluida_em, null);
+        await db.query("UPDATE usuarios SET acesso_permanente = TRUE WHERE id = $1", [pessoa.corpo.usuario.id]);
+        const liberada = await requisicao("/demandas/lixeira", { cookie: pessoa.cookie });
+        assert.equal(liberada.status, 200);
+        assert.deepEqual(liberada.corpo.map(item => item.id), [criada.id]);
+    });
+
+    await t.test("excluir tudo move todas as ativas da propria conta sem apagar dados nem modificar lixeira existente", async () => {
+        const pessoa = await cadastrar("Lixeira Todas", "lixeira-todas@example.invalid");
+        const outra = await cadastrar("Lixeira Todas Isolamento", "lixeira-todas-isolamento@example.invalid");
+        const primeira = await criarDemandaLixeira(pessoa.cookie, demanda("931"));
+        const concluida = await criarDemandaLixeira(pessoa.cookie, { ...demanda("932"), regional: "Campinas", concluida: true });
+        const jaExcluida = await criarDemandaLixeira(pessoa.cookie, demanda("933"));
+        const alheia = await criarDemandaLixeira(outra.cookie, demanda("934"));
+        const excluidaAlheia = await criarDemandaLixeira(outra.cookie, demanda("935"));
+        assert.equal((await requisicao(`/demandas/${jaExcluida.id}`, { metodo: "DELETE", cookie: pessoa.cookie })).status, 200);
+        assert.equal((await requisicao(`/demandas/${excluidaAlheia.id}`, { metodo: "DELETE", cookie: outra.cookie })).status, 200);
+        const ids = [primeira.id, concluida.id, jaExcluida.id, alheia.id, excluidaAlheia.id];
+        const lerRegistros = async () => (await db.query("SELECT * FROM demandas WHERE id = ANY($1::int[]) ORDER BY id", [ids])).rows;
+        const antes = await lerRegistros();
+        const legadoAntes = (await db.query("SELECT * FROM demandas WHERE numero_demanda = '999' AND usuario_id IS NULL")).rows;
+        const caminho = "/demandas/lixeira/todas";
+        assert.equal((await requisicao(caminho, { metodo: "POST", dados: {} })).status, 401);
+        assert.equal((await requisicao(caminho, { metodo: "POST", cookie: admin.cookie, dados: {} })).status, 403);
+        assert.equal((await requisicao(caminho, { metodo: "POST", cookie: pessoa.cookie, dados: {}, headers: { Origin: "https://origem-nao-autorizada.example.invalid" } })).status, 403);
+        await db.query("UPDATE usuarios SET teste_expira_em = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = $1", [pessoa.corpo.usuario.id]);
+        assert.equal((await requisicao(caminho, { metodo: "POST", cookie: pessoa.cookie, dados: {} })).status, 402);
+        assert.deepEqual(await lerRegistros(), antes, "Tentativas sem permissao nao podem mover nem apagar demandas.");
+        await db.query("UPDATE usuarios SET acesso_permanente = TRUE WHERE id = $1", [pessoa.corpo.usuario.id]);
+
+        const movidas = await requisicao(caminho, { metodo: "POST", cookie: pessoa.cookie, dados: {} });
+        assert.equal(movidas.status, 200);
+        assert.equal(movidas.corpo.movidas, 2, "Todas as ativas, inclusive concluidas ou de outra regional, devem ir para a lixeira.");
+        const depois = await lerRegistros();
+        assert.equal(depois.length, antes.length, "Excluir tudo deve mover os registros, sem exclusao fisica.");
+        for (const original of antes) {
+            const atual = depois.find(item => item.id === original.id);
+            if (original.id === primeira.id || original.id === concluida.id) {
+                assert.ok(atual.excluida_em instanceof Date && Number.isFinite(atual.excluida_em.getTime()));
+                assert.deepEqual({ ...atual, excluida_em: null }, original);
+            } else {
+                assert.deepEqual(atual, original, "Demandas alheias e datas de exclusao anteriores devem permanecer intactas.");
+            }
+        }
+        assert.deepEqual((await db.query("SELECT * FROM demandas WHERE numero_demanda = '999' AND usuario_id IS NULL")).rows, legadoAntes);
+        assert.deepEqual((await requisicao("/demandas", { cookie: pessoa.cookie })).corpo, []);
+        assert.deepEqual((await requisicao("/demandas/vencendo-amanha", { cookie: pessoa.cookie })).corpo, []);
+        assert.deepEqual((await requisicao("/demandas/lixeira", { cookie: pessoa.cookie })).corpo.map(item => item.id).sort((a,b)=>a-b), [primeira.id, concluida.id, jaExcluida.id].sort((a,b)=>a-b));
+        assert.deepEqual((await requisicao("/demandas", { cookie: outra.cookie })).corpo.map(item => item.id), [alheia.id]);
+        const repetida = await requisicao(caminho, { metodo: "POST", cookie: pessoa.cookie, dados: {} });
+        assert.equal(repetida.status, 200);
+        assert.equal(repetida.corpo.movidas, 0);
+        assert.deepEqual(await lerRegistros(), depois, "Repetir a operacao nao deve alterar datas nem registros ja na lixeira.");
     });
 });

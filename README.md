@@ -36,6 +36,16 @@ node scripts/promover-administrador.js --email pessoa@exemplo.com --confirmar
 
 Confirme a identidade e o banco de destino antes de executar. A promoção preserva a senha, revoga as sessões e exige novo login. Ela não cria conta nem transfere demandas.
 
+## Lixeira de demandas
+
+O botão **Excluir** move a demanda para a lixeira, após confirmação. Ela sai da lista principal, dos totais e dos lembretes, mantendo seus dados para restauração. Em **Lixeira**, **Restaurar** devolve a demanda à lista original.
+
+Em **Minhas demandas**, marcar **Selecionar todas** habilita **Excluir tudo**. A confirmação informa que todos os registros da lista principal serão movidos para a lixeira, inclusive os concluídos e os que não aparecem nos filtros aplicados. Essa operação não apaga os registros definitivamente.
+
+**Esvaziar lixeira** pede uma nova confirmação e apaga definitivamente somente as demandas excluídas da própria conta. Demandas ativas e registros de outras contas são preservados. Não há limpeza automática por prazo. A exportação da área Privacidade inclui os registros que ainda estão na lixeira e sua data de exclusão.
+
+O painel do cliente usa fontes maiores e adapta a lista e as ações para telas de celular. Login e administração mantêm sua apresentação própria.
+
 ## Gratuidade permanente autorizada
 
 O card Free oferece o teste de 30 dias. Uma gratuidade permanente é uma concessão operacional separada, registrada por comando privilegiado e auditada com um administrador existente e ativo:

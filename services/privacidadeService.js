@@ -158,9 +158,10 @@ function criarServicoPrivacidade({ db = dbPadrao, inicializar = inicializarBanco
             // A lista explicita impede que futuros campos de autenticacao entrem no arquivo.
             const perfil = (await client.query(`SELECT ${CAMPOS_PERFIL} FROM usuarios WHERE id = $1`, [usuarioId])).rows[0];
             if (!perfil) throw erroPublico(404, "USUARIO_NAO_ENCONTRADO", "Conta não encontrada.");
+            // A exportacao inclui a lixeira: estes registros ainda estao armazenados.
             const demandas = perfil.papel === "profissional" ? (await client.query(`SELECT id, numero_demanda,
                 beneficiario, regional, assunto, TO_CHAR(data_vencimento, 'YYYY-MM-DD') AS data_vencimento,
-                concluida, criado_em FROM demandas WHERE usuario_id = $1 ORDER BY id`, [usuarioId])).rows : [];
+                concluida, criado_em, excluida_em FROM demandas WHERE usuario_id = $1 ORDER BY id`, [usuarioId])).rows : [];
             const ativacoes = (await client.query(`SELECT id, referencia, plano, valor_centavos, acesso_ate, ativado_em
                 FROM ativacoes_assinatura WHERE usuario_id = $1 ORDER BY ativado_em, id`, [usuarioId])).rows;
             const solicitacoes = (await client.query(`SELECT ${CAMPOS_SOLICITACAO} FROM solicitacoes_privacidade

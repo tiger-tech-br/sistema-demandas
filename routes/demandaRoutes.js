@@ -23,6 +23,28 @@ router.get(
     demandaController.listarDemandas
 );
 
+// Lixeira
+router.get(
+    "/lixeira",
+    demandaController.listarLixeira
+);
+
+router.post(
+    "/lixeira/todas",
+    demandaController.moverTodasParaLixeira
+);
+
+// A rota fixa deve anteceder DELETE /:id.
+router.delete(
+    "/lixeira",
+    demandaController.esvaziarLixeira
+);
+
+router.post(
+    "/:id/restaurar",
+    demandaController.restaurarDemanda
+);
+
 // Atualizar
 router.put(
     "/:id",

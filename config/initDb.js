@@ -122,7 +122,9 @@ async function executarMigracao() {
             ALTER TABLE demandas ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
             -- NULL preserva o legado sem atribui-lo a cadastros publicos.
             ALTER TABLE demandas ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id);
+            ALTER TABLE demandas ADD COLUMN IF NOT EXISTS excluida_em TIMESTAMPTZ;
             CREATE INDEX IF NOT EXISTS idx_demandas_usuario_vencimento ON demandas (usuario_id, data_vencimento, id);
+            CREATE INDEX IF NOT EXISTS idx_demandas_usuario_lixeira ON demandas (usuario_id, excluida_em DESC, id DESC) WHERE excluida_em IS NOT NULL;
         `);
         await client.query(`
             DO $$
