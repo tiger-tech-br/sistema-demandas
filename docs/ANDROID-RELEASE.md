@@ -78,3 +78,13 @@ Assinada com a mesma chave de produção da 1.4, permite atualizar sobre a **1.4
 Build com Gradle 8.14.3 e verificação final concluídos: assinatura, pacote/versão, release sem depuração, alinhamento, backup e HTTP desativados. Os 8 assets correspondem exatamente ao `web/dist` final, incluindo `assets/index-DMsEP6Ik.js` e `assets/index-DL5U2vGb.css`; sem arquivos web extras, URLs antigas ou credenciais de assinatura. A cópia final foi conferida por SHA-256.
 
 O teste em aparelho físico ou emulador continua pendente.
+
+## Atualização 1.5 — 1 de novembro de 2026
+
+Inclui lixeira para demandas, exclusão individual, **Selecionar todas → Excluir tudo**, fontes maiores e ajustes de espaçamento e apresentação no celular. Arquivo: `SistemaDemandas-v1.5.apk`; versão `1.5`; `versionCode` `7`; tamanho **13.270.920 bytes**. SHA-256: `2D5A2E321D07A97F7B20A523D9054D82C335A0DE7A6C41AD05E603867119DA53`.
+
+Usa a mesma chave de produção das versões 1.4 e 1.4.1 e permite atualizar sobre essas versões sem desinstalar, preservando os dados locais. Os APKs anteriores permanecem disponíveis.
+
+Compilação com Gradle 8.14.3 e verificação final concluídas: assinatura, pacote/versão, release sem depuração, alinhamento e bloqueio de backup e HTTP. Os 8 assets correspondem ao `web/dist` final, incluindo `assets/index-CQMr5ME8.js` e `assets/index-Q5nb2I0L.css`; sem arquivos web extras, URLs antigas ou credenciais de assinatura. A cópia final foi conferida novamente por SHA-256.
+
+Os **30 testes automatizados** passaram. O QA da interface no Chrome passou nos tamanhos de 320, 390 e 1366 px, incluindo os fluxos da lixeira, seleção em lote e geometria das ações. Esses testes de navegador não executam o APK: o teste de execução da versão 1.5 em aparelho Android físico ou emulador Android continua pendente.

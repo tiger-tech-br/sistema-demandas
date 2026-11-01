@@ -2,13 +2,14 @@
 
 ## Estado validado em 01/11/2026
 
-- Fonte em produção: `538d2fd4e8ebaff17ae3e834376a41fa7824c148`, branch `codex/saas-demandas`.
-- Implantação Railway `6292eeb8-b49f-47df-80dd-64fb23226135`: `SUCCESS`. A anterior `434a562` foi substituída.
-- Interface e bundle `index-BycGpBIA.js`: HTTP 200; catálogo com 30 dias, mensal 3.500 centavos e anual 35.000 centavos; política com responsável identificado e contato público.
-- Rotas privadas recusam acesso sem sessão; origem de mutação inválida é rejeitada. Login fictício inválido confirmou atendimento com banco, sem criar uma conta. A recuperação reconheceu configuração válida e o único e-mail real autorizado teve recebimento confirmado pelo responsável.
-- Conferência no Neon preservou 23 demandas do titular e sua concessão permanente gratuita, sem mudar dados ou senha. A administração permanece em perfil separado.
-- 26 testes passaram em PostgreSQL temporário. A corrida entre login antigo e redefinição foi reproduzida antes da correção e deixou de reproduzir depois dela. Auditoria de dependências completa: zero alertas após atualizar glob/minimatch e manter a CLI Capacitor nas ferramentas de desenvolvimento.
-- APK release 1.4/code 5 gerado com ferramentas do Android Studio, chave própria e verificação de assinatura, manifesto e oito assets. **Execução em dispositivo Android ainda pendente**; a entrega completa não está encerrada. Metadados e preservação da chave em [ANDROID-RELEASE.md](ANDROID-RELEASE.md).
+- Fonte em produção: `2077f5ad584c7c6f3a4c9c9a9b31749cbc2ac77a`, branch `codex/saas-demandas`.
+- Implantação Railway `e7880708-8376-4624-bcab-d9be3f4cf7ab`: `SUCCESS`. Acrescenta lixeira, exclusão individual, **Selecionar todas → Excluir tudo**, fontes maiores e ações espaçadas.
+- Página, bundle `index-CQMr5ME8.js` e CSS `index-Q5nb2I0L.css`: HTTP 200; os dois assets correspondem por SHA-256 ao build local e ao pacote Android.
+- A conferência de produção confirmou HTTP 401 na conta sem sessão válida e na lixeira sem autenticação. A migração aditiva criou o timestamp da lixeira sem marcar ou apagar demandas existentes. Nenhuma conta, demanda fictícia ou solicitação de e-mail foi criada nessa conferência.
+- A leitura do Neon confirmou as 23 demandas do titular, nenhuma na lixeira, com o mesmo resumo de conteúdo anterior à publicação e a gratuidade permanente preservada. A administração continua em perfil separado.
+- **30 testes passaram** em PostgreSQL temporário, cobrindo isolamento, restauração, esvaziamento seletivo e exclusão de todas as demandas próprias, além dos fluxos de acesso, cobrança e privacidade. A regressão da corrida entre login e redefinição também passou. As dependências não foram alteradas nesta versão.
+- QA do navegador com dados sintéticos passou em 320, 390 e 1366 px: navegação lateral e móvel, botões individuais, seleção de todas, confirmações, cancelamento, restauração, esvaziamento, erro, carregamento e limites de largura. O navegador e o servidor de teste foram encerrados; os dados e artefatos locais foram descartados.
+- APK release **1.5/code 7** gerado com ferramentas do Android Studio e a mesma chave de produção, com assinatura, manifesto e oito assets verificados. **Execução desta versão em dispositivo Android ainda pendente**; a entrega completa não está encerrada. Metadados e preservação da chave em [ANDROID-RELEASE.md](ANDROID-RELEASE.md).
 
 As seções seguintes são o histórico da migração e das publicações anteriores. Os estados intermediários nelas não substituem o registro acima. Não repetir a migração ou a associação do legado.
 
