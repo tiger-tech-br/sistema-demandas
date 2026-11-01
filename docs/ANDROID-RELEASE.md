@@ -68,3 +68,13 @@ Verificações concluídas: assinatura válida por `apksigner`; alinhamento vál
 Os **8 arquivos web** embarcados correspondem exatamente aos hashes de `web/dist` final, incluindo `assets/index-BycGpBIA.js` e `assets/index-C_1m6_FZ.css`. A inspeção não encontrou assets web extras, URLs antigas Render, arquivos privados de assinatura ou senhas de assinatura no APK. A cópia na raiz foi conferida novamente por SHA-256.
 
 **Limite de validação:** não houve execução do APK em aparelho físico ou emulador. Instalação, início, login, permissões e notificações no Android continuam pendentes de teste em dispositivo. A aprovação estática e a compilação não substituem esses testes.
+
+## Atualização 1.4.1 — 1 de novembro de 2026
+
+Centraliza o texto **Entrar** no botão de login. Arquivo: `SistemaDemandas-v1.4.1.apk`; versão `1.4.1`; `versionCode` `6`; tamanho **13.266.304 bytes**. SHA-256: `19DCA9405B0BE2854B0D132A4020B051A7C8FB0C27B829C4201086154302EFBB`.
+
+Assinada com a mesma chave de produção da 1.4, permite atualizar sobre a **1.4 de produção sem desinstalar**, preservando os dados locais. A orientação anterior de desinstalação aplica-se às versões antigas assinadas com a chave de debug.
+
+Build com Gradle 8.14.3 e verificação final concluídos: assinatura, pacote/versão, release sem depuração, alinhamento, backup e HTTP desativados. Os 8 assets correspondem exatamente ao `web/dist` final, incluindo `assets/index-DMsEP6Ik.js` e `assets/index-DL5U2vGb.css`; sem arquivos web extras, URLs antigas ou credenciais de assinatura. A cópia final foi conferida por SHA-256.
+
+O teste em aparelho físico ou emulador continua pendente.
