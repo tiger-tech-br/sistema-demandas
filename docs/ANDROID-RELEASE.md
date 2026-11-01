@@ -53,3 +53,18 @@ O projeto também abre diretamente na pasta `android` no Android Studio. Use o b
 A entrega deve ser verificada com `apksigner verify --verbose --print-certs`, `aapt dump badging` e inspeção do manifesto binário. Compare também os hashes dos arquivos em `assets/public/` no APK com a pasta `web/dist` da compilação final. O APK não deve conter credenciais de assinatura nem URLs antigas de infraestrutura.
 
 Os dados finais do artefato (hash, tamanho, certificado e resultado das verificações) são registrados abaixo após a compilação. Não há dispositivo conectado, AVD configurado nem imagem Android instalada no SDK deste ambiente. Portanto, o APK ainda não foi executado em Android real ou emulador. Instalação, início do aplicativo, permissões, retorno do segundo plano e notificações precisam de validação em dispositivo antes de divulgação comercial como aplicativo testado.
+## Artefato final validado — 1 de novembro de 2026
+
+- Arquivo de entrega: `SistemaDemandas-v1.4.apk` na raiz do projeto.
+- Pacote: `com.viviani.sistemademandas`; versão `1.4`; `versionCode` `5`; mínimo API `24`; alvo API `36`.
+- Tamanho: **13.266.288 bytes** (aproximadamente **12,65 MiB**).
+- SHA-256 do APK: `82F40C8EAB76BD97672A99D6506EA61AF5AF9176176F2A8F1DEB79D3C152F0E5`.
+- Certificado de produção SHA-256: `92:2E:F4:3C:F4:85:2E:D7:15:9C:72:A5:AD:7E:D0:2A:F9:24:98:35:BC:3D:72:1F:42:EC:10:25:B1:CC:DF:82`.
+
+A compilação `:app:assembleRelease` concluiu com sucesso usando o JDK do Android Studio. A primeira tentativa offline identificou bibliotecas de lint ausentes no cache; a compilação final obteve essas dependências dos repositórios configurados e manteve o lint habilitado.
+
+Verificações concluídas: assinatura válida por `apksigner`; alinhamento válido por `zipalign`; pacote e versão corretos; release sem depuração; backup desativado; HTTP bloqueado no manifesto e no recurso de política de rede efetivamente referenciado pelo APK. O otimizador renomeou o XML da política para `res/8G.xml`, resolvido pela tabela de recursos a partir do ID `0x7f110002` no manifesto.
+
+Os **8 arquivos web** embarcados correspondem exatamente aos hashes de `web/dist` final, incluindo `assets/index-BycGpBIA.js` e `assets/index-C_1m6_FZ.css`. A inspeção não encontrou assets web extras, URLs antigas Render, arquivos privados de assinatura ou senhas de assinatura no APK. A cópia na raiz foi conferida novamente por SHA-256.
+
+**Limite de validação:** não houve execução do APK em aparelho físico ou emulador. Instalação, início, login, permissões e notificações no Android continuam pendentes de teste em dispositivo. A aprovação estática e a compilação não substituem esses testes.

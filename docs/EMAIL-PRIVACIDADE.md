@@ -1,6 +1,6 @@
 # E-mail transacional e privacidade
 
-A fonte atual inclui recuperação de senha para profissionais e administradores, confirmação de cancelamento por e-mail e uma área de direitos de privacidade. O provedor de envio é o Resend. Esta documentação descreve a configuração necessária e o funcionamento do código; não comprova verificação de DNS, envio real ou publicação desses recursos em produção.
+A fonte atual inclui recuperação de senha para profissionais e administradores, confirmação de cancelamento por e-mail e uma área de direitos de privacidade. O provedor de envio é o Resend. Em 01/11/2026, esta versão foi publicada no Railway e o responsável confirmou o recebimento do único e-mail real de redefinição autorizado para a verificação. O cancelamento e sua fila foram validados em banco temporário, com transporte simulado; nenhum pagamento ou cancelamento real foi executado nos testes.
 
 ## Remetente e ambiente
 
@@ -85,7 +85,7 @@ O código não oferece um botão público de reenvio ou um procedimento automát
 
 O aceite tem finalidade contratual e de transparência; não representa consentimento irrestrito para todo tratamento. A política descreve dados de conta e demandas, fornecedores Railway, Neon, Resend e PagBank, possibilidade de processamento internacional, sessão essencial, finalidades e canais de direitos. Não há integração de publicidade ou análise de audiência no aplicativo; as configurações externas de rastreamento do provedor de e-mail precisam ser conferidas conforme a orientação acima.
 
-A identificação fornecida para esta implementação é a marca e seu contato. A identificação jurídica completa da pessoa responsável não foi informada e precisa ser confirmada na revisão dos documentos públicos. A presença destes recursos não representa certificação, aprovação da ANPD nem garantia de conformidade jurídica integral.
+O responsável informou e autorizou a publicação do nome **José Andrey Pereira Lisboa**, junto da marca **Tiger Tech** e do contato público. Esses dados constam na política e nos termos. Obrigações legais, bases de tratamento, conservação e efetivo atendimento aos titulares dependem também da operação do serviço; estes recursos não representam certificação, aprovação da ANPD nem garantia de conformidade jurídica integral.
 
 ## Exportação e solicitações do titular
 
