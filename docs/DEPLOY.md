@@ -1,5 +1,19 @@
 # Neon e implantação existente no Railway
 
+## Cancelamento antes da exclusão — 03/11/2026
+
+- Fonte ativa: `e784a920a655a3b688e4ff8f03e46f8c01924f4f`, branch `codex/saas-demandas`, fixada no serviço existente.
+- Implantação `ea11d197-244d-4909-b733-56cb45bdba2c`: `SUCCESS`. Substitui a exclusão imediata de assinantes da publicação anterior pelo fluxo condicionado ao encerramento da cobrança.
+- `DELETE /privacidade/conta` retorna `202` e preserva a conta quando há assinatura sem cancelamento confirmado ou checkout rastreado ainda em conferência. O administrador encerra a cobrança no PagBank ou confere que a contratação não gerou recorrência e registra a confirmação; a conta é removida automaticamente na mesma transação. Sem cobrança a encerrar, a exclusão continua imediata.
+- A migração acrescenta três campos de estado, sem remover dados existentes. Novos checkouts, ativações e concessões de gratuidade ficam protegidos durante a espera. O painel oferece **Exclusão pendente** e confirma a remoção definitiva antes do registro administrativo.
+- **39 testes** aprovados em PostgreSQL temporário e compilação web aprovada. A conferência em produção não criou contas nem executou exclusão em conta real.
+- Página e assets HTTP `200`; política `2026-11-03.1`; rotas privadas de conta, demandas, exclusão e cancelamento HTTP `401` sem sessão.
+- Assets publicados iguais ao build local e aos oito arquivos web do APK: `index-DWR0TkqB.js`, SHA-256 `11c96345bf9864480bbf949a637c1d15eb99b27a77776f4915e119f03582ff29`; `index-D3D7gpCJ.css`, SHA-256 `5a474ee7707747399df34808cd2111fadf591f49e20fbf23bcc2ac84145eaa11`.
+- APK **1.7/code 9**, `SistemaDemandas-v1.7.apk`, **13.273.132 bytes**, SHA-256 `4E8F6400A2AAA0FDA12B95210BEC48700157335035FF8B46804FEE8D6278B58F`. Assinatura de produção preservada, alinhamento, pacote, versão, manifesto, política de rede e assets conferidos. Execução em aparelho ou emulador continua pendente.
+- O PagBank continua exigindo operação e conferência reais do responsável. Checkouts anteriores ao rastreamento e links usados fora do aplicativo não têm marcador local e precisam de identificação manual; a atualização não consulta nem reconcilia automaticamente essas contratações.
+
+Os registros abaixo são históricos e descrevem o comportamento das versões anteriores.
+
 ## Publicação validada em 03/11/2026
 
 - Fonte em produção: `2d87f4fe6515fcafd01fa9229b9dc24f56180253`, branch `codex/saas-demandas`.
