@@ -1,5 +1,19 @@
 # Neon e implantação existente no Railway
 
+## Publicação validada em 03/11/2026
+
+- Fonte em produção: `2d87f4fe6515fcafd01fa9229b9dc24f56180253`, branch `codex/saas-demandas`.
+- Implantação Railway `b69fef62-cd49-44ae-b489-10e08b397420`: `SUCCESS`, no serviço e domínio existentes. A fonte está fixada nesse commit.
+- Inclui **Excluir cadastro** em Minha conta e Privacidade, confirmação por modal, exclusão definitiva dos dados próprios do banco ativo e encerramento das sessões; inclui os atalhos de assinatura e o pedido de cancelamento mesmo com acesso profissional bloqueado.
+- Os **34 testes** passaram em PostgreSQL temporário e a compilação web foi aprovada. A migração acrescenta somente a tabela de hashes das referências consumidas, sem remover dados existentes durante a publicação.
+- Página e assets: HTTP `200`. O JavaScript `index-DnY7ixlX.js` e o CSS `index-WTZ9GHAS.css` publicados correspondem por SHA-256 ao build local.
+- SHA-256 JavaScript: `e59ca40aca86e8183729fadc0616e7c3495fdab35add711bda6029643a5e23e2`; CSS: `77f047d296d399416c33537716705888526a78b65f8b628250ae1401d0c268d4`.
+- A política pública retorna a versão `2026-11-03`. Sem autenticação, `GET /auth/me`, `GET /demandas`, `DELETE /privacidade/conta` e `POST /cobranca/cancelamento` retornam `401`. Nenhuma exclusão foi executada em conta real nesta conferência.
+- O cancelamento da recorrência no PagBank continua dependendo da operação e confirmação do responsável. Excluir cadastro não cancela cobranças externas; o modal informa essa distinção.
+- APK **1.6/code 8**: `SistemaDemandas-v1.6.apk`, **13.271.908 bytes**, SHA-256 `E50311EDDFB955FC0CE5FC0A29CD4432E9D72E3033B9F8A863445CB566CD617D`. Assinatura de produção igual à versão 1.5, alinhamento e oito assets web conferidos. A atualização permite instalação sobre a versão anterior; execução desta versão em aparelho ou emulador continua pendente.
+
+O histórico abaixo registra versões anteriores. A entrega Android desta atualização é registrada separadamente em [ANDROID-RELEASE.md](ANDROID-RELEASE.md).
+
 ## Estado validado em 01/11/2026
 
 - Fonte em produção: `2077f5ad584c7c6f3a4c9c9a9b31749cbc2ac77a`, branch `codex/saas-demandas`.

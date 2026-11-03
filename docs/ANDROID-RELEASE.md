@@ -1,6 +1,6 @@
 # Entrega Android — Sistema de Demandas
 
-O aplicativo mantém o identificador `com.viviani.sistemademandas`. Esta entrega usa versão **1.4**, `versionCode` **5**, build `release` sem depuração e uma chave de produção própria. O Gradle não usa a chave de debug para assinar releases.
+O aplicativo mantém o identificador `com.viviani.sistemademandas`. A entrega atual usa versão **1.6**, `versionCode` **8**, build `release` sem depuração e a mesma chave de produção das versões 1.4, 1.4.1 e 1.5. O Gradle não usa a chave de debug para assinar releases.
 
 ## Assinatura e atualização
 
@@ -8,13 +8,13 @@ A chave privada está em `android/keystore/tiger-tech-release.jks`. As credencia
 
 **Preserve uma cópia de segurança cifrada desses dois arquivos fora deste computador.** Eles são necessários para assinar atualizações que possam ser instaladas sobre esta versão. Não substitua a chave em futuras compilações. O alias público desta chave é `tiger-tech-release`. Certificado de produção SHA-256: `92:2E:F4:3C:F4:85:2E:D7:15:9C:72:A5:AD:7E:D0:2A:F9:24:98:35:BC:3D:72:1F:42:EC:10:25:B1:CC:DF:82`.
 
-A versão de teste anterior foi assinada com um certificado de debug diferente. Para instalar este release, desinstale primeiro o aplicativo anterior e depois instale `SistemaDemandas-v1.4.apk`. Isso limpa sessões, cache, permissões e notificações locais. Os dados da conta armazenados no servidor/Neon permanecem disponíveis após entrar novamente. Permita notificações na nova instalação para receber os avisos do aplicativo.
+A versão de teste anterior à 1.4 foi assinada com um certificado de debug diferente. Somente quem ainda usa essa versão antiga precisa desinstalá-la antes de instalar um release de produção, o que limpa sessões, cache, permissões e notificações locais. Os dados da conta armazenados no servidor/Neon permanecem disponíveis após entrar novamente. Permita notificações na nova instalação para receber os avisos do aplicativo. Quem já usa a 1.4, 1.4.1 ou 1.5 de produção pode instalar `SistemaDemandas-v1.6.apk` por cima, sem desinstalar.
 
 A nova chave passa a permitir atualizações diretas das próximas versões assinadas com ela. A publicação em loja não foi realizada nesta entrega.
 
 ## Compilação
 
-Ferramentas usadas: JDK 21 do Android Studio (`C:\Program Files\Android\Android Studio\jbr`), SDK Android local e Gradle 8.14.3. O wrapper aponta para a distribuição `8.14.3-all` já armazenada em cache. O aplicativo requer Android 7.0/API 24 ou superior e tem alvo Android API 36.
+Ferramentas usadas: JDK 21 do Android Studio (`C:\Program Files\Android\Android Studio\jbr`), SDK Android local e Gradle 8.14.3 já armazenado em cache. A versão 1.6 foi compilada diretamente com esse binário, sem alterar o wrapper atual, que aponta para 9.7.1. O build 8.14.3 informa recursos incompatíveis com Gradle 9; não substitua o comando abaixo pelo wrapper sem revisar essa compatibilidade. O aplicativo requer Android 7.0/API 24 ou superior e tem alvo Android API 36.
 
 Na raiz do projeto, compile primeiro a interface e sincronize os recursos:
 
@@ -25,9 +25,10 @@ $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
 $env:ANDROID_SDK_ROOT = 'C:\Users\andre\AppData\Local\Android\Sdk'
 $env:GRADLE_USER_HOME = 'C:\Users\andre\.gradle'
 Push-Location android
-.\gradlew.bat :app:assembleRelease --offline
+$gradleAndroid = 'C:\Users\andre\.gradle\wrapper\dists\gradle-8.14.3-all\10utluxaxniiv4wxiphsi49nj\gradle-8.14.3\bin\gradle.bat'
+& $gradleAndroid :app:assembleRelease --offline
 Pop-Location
-Copy-Item android\app\build\outputs\apk\release\app-release.apk SistemaDemandas-v1.4.apk
+Copy-Item android\app\build\outputs\apk\release\app-release.apk SistemaDemandas-v1.6.apk
 ```
 
 O modo `--offline` depende de um cache Gradle já preenchido. Para uso em outro computador, instale o SDK, restaure a mesma chave e credenciais e configure `android/local.properties`. A configuração privada segue este formato, com os valores reais inseridos apenas no arquivo ignorado:
@@ -88,3 +89,19 @@ Usa a mesma chave de produção das versões 1.4 e 1.4.1 e permite atualizar sob
 Compilação com Gradle 8.14.3 e verificação final concluídas: assinatura, pacote/versão, release sem depuração, alinhamento e bloqueio de backup e HTTP. Os 8 assets correspondem ao `web/dist` final, incluindo `assets/index-CQMr5ME8.js` e `assets/index-Q5nb2I0L.css`; sem arquivos web extras, URLs antigas ou credenciais de assinatura. A cópia final foi conferida novamente por SHA-256.
 
 Os **30 testes automatizados** passaram. O QA da interface no Chrome passou nos tamanhos de 320, 390 e 1366 px, incluindo os fluxos da lixeira, seleção em lote e geometria das ações. Esses testes de navegador não executam o APK: o teste de execução da versão 1.5 em aparelho Android físico ou emulador Android continua pendente.
+
+## Atualização 1.6 — 3 de novembro de 2026
+
+Inclui **Excluir cadastro** em Minha conta e Privacidade, com confirmação em modal, exclusão definitiva dos dados da própria conta e encerramento das sessões. Acrescenta os atalhos de assinatura e privacidade em Minha conta e permite pedir cancelamento de assinatura mesmo com acesso profissional bloqueado. A exclusão local não cancela a recorrência no PagBank, conforme informado no modal.
+
+- Arquivo: `SistemaDemandas-v1.6.apk`, na raiz do projeto.
+- Pacote: `com.viviani.sistemademandas`; versão `1.6`; `versionCode` `8`; mínimo API `24`; alvo API `36`.
+- Tamanho: **13.271.908 bytes** (aproximadamente **12,66 MiB**).
+- SHA-256: `E50311EDDFB955FC0CE5FC0A29CD4432E9D72E3033B9F8A863445CB566CD617D`.
+- Certificado SHA-256: `92:2E:F4:3C:F4:85:2E:D7:15:9C:72:A5:AD:7E:D0:2A:F9:24:98:35:BC:3D:72:1F:42:EC:10:25:B1:CC:DF:82`, conferido novamente contra o APK 1.5. Permite atualização por cima das versões de produção anteriores.
+
+`npm run android:sync` e `:app:assembleRelease --offline` concluíram com sucesso, com lint habilitado, Gradle 8.14.3 e JDK do Android Studio. `apksigner` confirmou assinatura válida pelo esquema v2; `zipalign` aprovou o alinhamento. A inspeção com `aapt` confirmou pacote, versão, APIs, release sem depuração, backup desativado e tráfego HTTP bloqueado. A política de rede empacotada em `res/8G.xml`, referenciada pelo manifesto, também bloqueia HTTP.
+
+Os **8 arquivos web** do APK correspondem por SHA-256 ao `web/dist` atual, sem arquivos extras, incluindo `assets/index-DnY7ixlX.js` e `assets/index-WTZ9GHAS.css`. O domínio de produção foi publicado a partir do commit `2d87f4fe6515fcafd01fa9229b9dc24f56180253` e os assets remotos conferidos correspondem ao mesmo build. A cópia final do APK tem o mesmo hash do artefato assinado gerado pelo Gradle. Não foram encontrados arquivos `.env`, keystore ou URLs antigas Render no pacote web.
+
+Os **34 testes automatizados** da aplicação passaram em PostgreSQL temporário, incluindo exclusão definitiva, isolamento e reversão integral em caso de falha. **Não houve execução deste APK em aparelho físico ou emulador**; instalação e os fluxos nativos, inclusive permissões e notificações, continuam pendentes de validação em dispositivo.
