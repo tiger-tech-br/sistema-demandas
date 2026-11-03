@@ -68,6 +68,9 @@ async function executarMigracao() {
                 acesso_ate TIMESTAMPTZ NOT NULL,
                 ativado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS referencias_pagamento_excluidas (
+                referencia_hash CHAR(64) PRIMARY KEY
+            );
             CREATE TABLE IF NOT EXISTS auth_limites (
                 chave CHAR(64) PRIMARY KEY,
                 inicio_janela TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

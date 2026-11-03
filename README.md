@@ -68,7 +68,7 @@ node scripts/ativar-assinatura.js --email pessoa@exemplo.com --plano mensal --re
 
 Use `--plano anual` para o anual. Cada referência só pode conceder um período. O registro soma um mês ou ano de calendário ao período de acesso preservado.
 
-O profissional pode pedir cancelamento na área de assinatura. O responsável precisa cancelar a recorrência no PagBank e confirmar essa ação no painel administrativo. A confirmação mantém o acesso até seu vencimento e grava uma mensagem transacional na fila de e-mail; o worker tenta enviá-la automaticamente pelo Resend quando configurado. Enviar o pedido, bloquear o acesso ou sair da conta não interrompe a cobrança no gateway.
+O profissional pode pedir cancelamento na área de assinatura, também acessível pelo atalho **Cancelar assinatura** em **Minha conta**. O responsável precisa cancelar a recorrência no PagBank e confirmar essa ação no painel administrativo. A confirmação mantém o acesso até seu vencimento e grava uma mensagem transacional na fila de e-mail; o worker tenta enviá-la automaticamente pelo Resend quando configurado. Enviar o pedido, bloquear o acesso ou sair da conta não interrompe a cobrança no gateway.
 
 Após um cancelamento confirmado, voltar a assinar exige nova contratação e pagamento conferido. O administrador deve confirmar `nova_assinatura: true`; a CLI usa `--nova-assinatura`. Isso remove o estado de cancelamento anterior somente no registro dessa nova contratação. Veja os detalhes e os cuidados contra duplicidade em [PagBank](docs/PAGBANK.md).
 
@@ -78,7 +78,11 @@ A recuperação de senha atende profissionais e administradores. Links valem 30 
 
 O domínio de envio é **tigertech.dev.br**, com remetente `Tiger Tech <nao-responda@tigertech.dev.br>` e contato `tigertechbr@outlook.com`. Em 01/11/2026, as variáveis de produção foram configuradas e o recebimento de um e-mail real de recuperação foi confirmado pelo responsável. Consulte [E-mail e privacidade](docs/EMAIL-PRIVACIDADE.md).
 
-Termos e política de privacidade possuem versão e aceite registrado. A área Privacidade permite exportar dados da própria conta e registrar pedidos de acesso, correção, exclusão ou outro direito. Ela permanece acessível à conta autenticada mesmo com assinatura expirada ou acesso profissional bloqueado. As respostas administrativas registram a análise: **não executam exclusão nem correção automaticamente**. O atendimento efetivo exige revisão das obrigações de conservação, das cópias de segurança e comunicação das providências ao titular.
+Termos e política de privacidade possuem versão e aceite registrado. A área Privacidade permite exportar dados da própria conta e registrar pedidos de acesso, correção, exclusão ou outro direito. Ela permanece acessível à conta autenticada mesmo com assinatura expirada ou acesso profissional bloqueado. As respostas administrativas registram a análise e não executam correção nem exclusão automaticamente.
+
+**Excluir cadastro**, em **Minha conta** e **Privacidade**, é uma ação direta para o profissional: abre um modal e, ao confirmar, apaga definitivamente do banco ativo a própria conta, as demandas ativas e na lixeira, as sessões, os links de recuperação, as solicitações, as ativações e as notificações vinculadas. A remoção é atômica e encerra o acesso imediatamente, inclusive durante o período pago. Uma falha reverte a operação inteira; dados de outras contas são preservados. Contas administrativas continuam usando o atendimento de privacidade para evitar remover registros administrativos alheios.
+
+A exclusão não cancela a recorrência nem executa estorno no PagBank; o modal informa essa distinção e oferece acesso à gestão da assinatura quando houver plano registrado sem cancelamento confirmado. Somente hashes das referências de pagamento consumidas permanecem, sem nome, e-mail ou vínculo com a conta, para impedir novo crédito com uma referência antiga. A exclusão do banco ativo não elimina cópias de segurança, e-mails já enviados nem registros dos fornecedores.
 
 ## Demandas anteriores à versão SaaS
 

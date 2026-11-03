@@ -10,14 +10,10 @@ const cobranca = require("../services/cobrancaService");
 
 const router = express.Router();
 
-router.use(exigirAutenticacao, exigirProfissional);
+router.use(exigirAutenticacao);
 router.use((req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
-});
-
-router.get("/status", (req, res) => {
-    res.json(obterStatusCobranca(req.assinatura));
 });
 
 const tratar = operacao => async (req, res, next) => {
@@ -27,8 +23,20 @@ const tratar = operacao => async (req, res, next) => {
         return next(erro);
     }
 };
+
+// Encerrar a recorrencia permanece disponivel mesmo com acesso profissional bloqueado.
+router.post("/cancelamento", (req, res, next) => {
+    if (req.usuario.papel !== "profissional") {
+        return res.status(403).json({ codigo: "PERFIL_NAO_PERMITIDO", mensagem: "Use o painel de administracao para gerenciar o sistema." });
+    }
+    return next();
+}, tratar(async (req, res) => res.json(await cobranca.solicitarCancelamento(req.usuario.id))));
+
+router.use(exigirProfissional);
+router.get("/status", (req, res) => {
+    res.json(obterStatusCobranca(req.assinatura));
+});
 router.post("/boas-vindas", tratar(async (req, res) => res.json(await cobranca.registrarBoasVindas(req.usuario.id, req.body?.escolha))));
-router.post("/cancelamento", tratar(async (req, res) => res.json(await cobranca.solicitarCancelamento(req.usuario.id))));
 
 router.post("/checkout", (req, res) => {
     const plano = req.body?.plano;

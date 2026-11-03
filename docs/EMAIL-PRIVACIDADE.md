@@ -81,7 +81,7 @@ O código não oferece um botão público de reenvio ou um procedimento automát
 
 ## Política, termos e aceite
 
-`GET /privacidade/politica` é público e fornece a versão `2026-10-31`, a marca responsável **Tiger Tech**, contato, política e termos. O cadastro exige o aceite explícito da versão apresentada; contas antigas registram ciência pelo `POST /privacidade/aceite`, com `{"versao":"2026-10-31"}`. A aplicação guarda versão e horário do aceite.
+`GET /privacidade/politica` é público e fornece a versão `2026-11-03`, a marca responsável **Tiger Tech**, contato, política e termos. O cadastro exige o aceite explícito da versão apresentada; contas antigas registram ciência pelo `POST /privacidade/aceite`, com `{"versao":"2026-11-03"}`. A aplicação guarda versão e horário do aceite.
 
 O aceite tem finalidade contratual e de transparência; não representa consentimento irrestrito para todo tratamento. A política descreve dados de conta e demandas, fornecedores Railway, Neon, Resend e PagBank, possibilidade de processamento internacional, sessão essencial, finalidades e canais de direitos. Não há integração de publicidade ou análise de audiência no aplicativo; as configurações externas de rastreamento do provedor de e-mail precisam ser conferidas conforme a orientação acima.
 
@@ -96,6 +96,7 @@ A conta autenticada pode utilizar os recursos de privacidade mesmo com assinatur
 | `GET /privacidade/dados` | Exporta perfil explícito, demandas do próprio profissional, ativações e solicitações próprias, sem hashes de senha ou tokens. Administradores não recebem demandas de terceiros nesse arquivo. |
 | `GET /privacidade/solicitacoes` | Lista somente os pedidos da própria conta e suas respostas. |
 | `POST /privacidade/solicitacoes` | Registra `acesso`, `correcao`, `exclusao` ou `outro`, com descrição de 10 a 2.000 caracteres. |
+| `DELETE /privacidade/conta` | Com `{"confirmar":true}`, apaga imediatamente a própria conta profissional e seus dados do banco ativo, inclusive demandas na lixeira e todas as sessões. Sem confirmação, retorna `400`; administrador recebe `403`. |
 | `GET /admin/privacidade` | Permite ao administrador ativo consultar a fila, com nome e e-mail do solicitante. |
 | `POST /admin/privacidade/:id/resposta` | Registra resposta de 10 a 4.000 caracteres e a identidade administrativa na auditoria. |
 
@@ -107,7 +108,9 @@ O download no navegador é um JSON; no Android a interface também permite consu
 
 **Registrar uma resposta não corrige, anonimiza, bloqueia nem apaga dados automaticamente.** O estado `respondida` registra que houve uma resposta administrativa, não que toda providência solicitada foi executada. Cancelar uma assinatura e encerrar seu período de acesso também não exclui os registros.
 
-O responsável deve avaliar a identidade e o alcance do pedido, identificar o controlador aplicável, realizar a providência autorizada e registrar uma resposta fiel ao resultado. Antes de exclusão ou anonimização, deve revisar obrigações de conservação, registros necessários e cópias de segurança, comunicar o que foi efetivamente realizado e justificar limitações ou prazos aplicáveis. Não declarar exclusão de backups ou de dados mantidos por fornecedores sem verificar a operação correspondente.
+O botão **Excluir cadastro**, em Minha conta e Privacidade, abre uma confirmação simples e executa a exclusão definitiva diretamente, sem enviar pedido para análise. A transação apaga dados próprios, inclusive demandas ativas e na lixeira, ativações, solicitações, notificações, sessões e links de recuperação. Também remove os limites de autenticação específicos do e-mail, preservando limites compartilhados por IP. Uma falha reverte todas as alterações. A confirmação encerra o acesso imediatamente, mesmo havendo período pago restante. A autoexclusão direta atende somente profissionais; pedidos de contas administrativas continuam pelo atendimento.
+
+A exclusão não cancela a recorrência no PagBank nem executa estorno. O modal apresenta essa informação e permite acessar a gestão da assinatura antes de excluir. Hashes de referências de pagamentos já consumidos são preservados em `referencias_pagamento_excluidas`, sem vínculo com usuário, nome ou e-mail, impedindo reutilização pelo painel e pela CLI. Mensagens já enviadas, registros dos fornecedores e cópias de segurança não são apagados por essa operação. O formulário de solicitações continua separado para atendimento dos demais pedidos; registrar uma resposta não executa uma alteração automaticamente.
 
 Nos dados inseridos em demandas, o profissional ou a organização que representa define a finalidade e a base legal como controlador; a plataforma atua como operadora quando processa esses registros em seu nome. Para cadastro, autenticação, assinatura e administração da própria plataforma, a Tiger Tech define o tratamento correspondente.
 

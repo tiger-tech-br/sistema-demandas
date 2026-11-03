@@ -16,7 +16,7 @@ let carla;
 let vencimento;
 
 const senha = "Senha-de-teste-123";
-const aceiteTermos = { aceite_termos: true, versao_termos: "2026-10-31" };
+const aceiteTermos = { aceite_termos: true, versao_termos: "2026-11-03" };
 
 async function requisicao(caminho, { metodo = "GET", cookie, dados, headers = {} } = {}) {
     const resposta = await fetch(`${base}${caminho}`, {
@@ -52,6 +52,16 @@ async function criarDemandaLixeira(cookie, dados) {
     const resposta = await requisicao("/demandas", { metodo: "POST", cookie, dados });
     assert.equal(resposta.status, 201);
     return resposta.corpo.demanda;
+}
+
+const tabelasDaConta = ["usuarios", "demandas", "sessoes", "redefinicoes_senha", "solicitacoes_privacidade", "ativacoes_assinatura", "notificacoes_email", "acoes_administrativas"];
+async function registrosDaConta(usuarioId, outros = false) {
+    return Object.fromEntries(await Promise.all(tabelasDaConta.map(async tabela => {
+        const coluna = tabela === "usuarios" ? "id" : "usuario_id";
+        const ordem = ["sessoes", "redefinicoes_senha"].includes(tabela) ? "token_hash" : "id";
+        const resultado = await db.query(`SELECT * FROM ${tabela} WHERE ${coluna} ${outros ? "IS DISTINCT FROM" : "="} $1 ORDER BY ${ordem}`, [usuarioId]);
+        return [tabela, resultado.rows];
+    })));
 }
 
 async function comRecuperacao(executar, { configurado = true } = {}) {
@@ -720,6 +730,49 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
         }
     });
 
+    await t.test("profissional bloqueado pode pedir cancelamento sem liberar acesso nem alterar o prazo", async () => {
+        // Isola o cadastro das contas deste cenario das tentativas dos testes anteriores.
+        await db.query("DELETE FROM auth_limites");
+        assert.equal((await requisicao("/cobranca/cancelamento", { metodo: "POST", dados: {} })).status, 401);
+        assert.equal((await requisicao("/cobranca/cancelamento", { metodo: "POST", cookie: admin.cookie, dados: {} })).status, 403);
+        for (const expirada of [false, true]) {
+            const pessoa = await cadastrar("Cancelamento Bloqueado", `cancelamento-bloqueado-${expirada}@example.invalid`);
+            const id = pessoa.corpo.usuario.id;
+            await criarDemandaLixeira(pessoa.cookie, demanda(expirada ? "7202" : "7201"));
+            const ativacao = await requisicao(`/admin/pessoas/${id}/assinatura`, {
+                metodo: "POST", cookie: admin.cookie,
+                dados: { plano: "mensal", referencia: `cancelamento-bloqueado-pagamento-${expirada}` }
+            });
+            assert.equal(ativacao.status, 201);
+            if (expirada) {
+                await db.query("UPDATE usuarios SET teste_expira_em = CURRENT_TIMESTAMP - INTERVAL '2 days', assinatura_expira_em = CURRENT_TIMESTAMP - INTERVAL '1 day' WHERE id = $1", [id]);
+            }
+            await db.query("UPDATE usuarios SET bloqueado_em = CURRENT_TIMESTAMP, termos_versao = NULL, termos_aceitos_em = NULL WHERE id = $1", [id]);
+            const consultarPrazos = async () => (await db.query(`SELECT teste_expira_em, assinatura_expira_em,
+                bloqueado_em, termos_versao, termos_aceitos_em FROM usuarios WHERE id = $1`, [id])).rows[0];
+            const antes = await consultarPrazos();
+            const conta = await requisicao("/auth/me", { cookie: pessoa.cookie });
+            assert.equal(conta.corpo.usuario.bloqueado, true);
+            assert.equal(conta.corpo.usuario.politica_aceita, false);
+            assert.equal(conta.corpo.assinatura.status, expirada ? "expirada" : "ativa");
+
+            const pedido = await requisicao("/cobranca/cancelamento", { metodo: "POST", cookie: pessoa.cookie, dados: {} });
+            assert.equal(pedido.status, 200);
+            assert.equal(pedido.headers.get("cache-control"), "no-store");
+            assert.equal(pedido.corpo.assinatura.renovacao_status, "cancelamento_solicitado");
+            assert.equal(pedido.corpo.assinatura.status, conta.corpo.assinatura.status);
+            assert.equal(pedido.corpo.assinatura.acesso_ate, conta.corpo.assinatura.acesso_ate);
+            assert.equal(pedido.corpo.assinatura.cancelamento_confirmado_em, null);
+            assert.deepEqual(await consultarPrazos(), antes);
+            assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } })).status, 403);
+            assert.equal((await requisicao("/cobranca/status", { cookie: pessoa.cookie })).status, 403);
+            assert.equal((await requisicao("/cobranca/boas-vindas", { metodo: "POST", cookie: pessoa.cookie, dados: { escolha: "teste" } })).status, 403);
+            assert.equal((await requisicao("/demandas", { cookie: pessoa.cookie })).status, 403);
+            assert.equal((await requisicao("/demandas", { metodo: "POST", cookie: pessoa.cookie, dados: demanda("7203") })).status, 403);
+            assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM demandas WHERE usuario_id = $1", [id])).rows[0].n), 1);
+        }
+    });
+
     await t.test("redefinicao impede login antigo pausado de emitir uma nova sessao", async () => {
         await comRecuperacao(async contexto => {
             const pessoa = await cadastrar("Concorrencia Login", "concorrencia-login@example.invalid");
@@ -945,5 +998,141 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
         assert.equal(repetida.status, 200);
         assert.equal(repetida.corpo.movidas, 0);
         assert.deepEqual(await lerRegistros(), depois, "Repetir a operacao nao deve alterar datas nem registros ja na lixeira.");
+    });
+
+    await t.test("excluir cadastro exige confirmacao e apaga so o titular com assinatura recorrente sem revogar outras contas", async () => {
+        await comRecuperacao(async contexto => {
+            const pessoa = await cadastrar("Excluir Cadastro", "excluir-cadastro@example.invalid");
+            const outra = await cadastrar("Preservar Cadastro", "preservar-cadastro@example.invalid");
+            const id = pessoa.corpo.usuario.id;
+            const referencia = "excluir-cadastro-pagamento-001";
+            await criarDemandaLixeira(pessoa.cookie, demanda("9401"));
+            const lixeira = await criarDemandaLixeira(pessoa.cookie, demanda("9402"));
+            await criarDemandaLixeira(outra.cookie, demanda("9403"));
+            assert.equal((await requisicao(`/demandas/${lixeira.id}`, { metodo: "DELETE", cookie: pessoa.cookie })).status, 200);
+            assert.equal((await requisicao(`/admin/pessoas/${id}/assinatura`, {
+                metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia }
+            })).status, 201);
+            assert.equal((await requisicao("/privacidade/solicitacoes", {
+                metodo: "POST", cookie: pessoa.cookie, dados: { tipo: "acesso", descricao: "Preciso consultar os meus dados completos." }
+            })).status, 201);
+            await db.query(`INSERT INTO notificacoes_email (usuario_id, evento, chave_unica, destinatario, assunto, texto, html)
+                VALUES ($1, 'teste_exclusao', 'teste-exclusao-cadastro', $2, 'Mensagem de teste', 'Mensagem pendente de teste', '<p>Mensagem pendente de teste</p>')`,
+            [id, pessoa.corpo.usuario.email]);
+            const android = await requisicao("/auth/login", {
+                metodo: "POST", headers: { Origin: "capacitor://localhost", "X-App-Client": "android" },
+                dados: { email: pessoa.corpo.usuario.email, senha }
+            });
+            assert.equal(android.status, 200);
+            assert.match(android.corpo.token, /^[a-f0-9]{64}$/);
+            const tokenRedefinicao = await solicitarToken(pessoa.corpo.usuario.email, contexto);
+            const chavesEmail = [`login:email:${pessoa.corpo.usuario.email}`, `redefinicao:solicitar:email:${pessoa.corpo.usuario.email}`]
+                .map(chave => createHash("sha256").update(chave).digest("hex"));
+            assert.equal((await db.query("SELECT chave FROM auth_limites WHERE chave IN ($1, $2)", chavesEmail)).rows.length, 2);
+            const limitesOutrosAntes = (await db.query("SELECT * FROM auth_limites WHERE chave NOT IN ($1, $2) ORDER BY chave", chavesEmail)).rows;
+            const antes = await registrosDaConta(id);
+            assert.equal(antes.usuarios[0].assinatura_plano, "mensal");
+            assert.equal(antes.usuarios[0].cancelamento_confirmado_em, null);
+            assert.equal(antes.demandas.length, 2);
+            assert.ok(antes.demandas.some(item => item.excluida_em));
+            assert.equal(antes.sessoes.length, 2);
+            for (const tabela of ["redefinicoes_senha", "solicitacoes_privacidade", "ativacoes_assinatura", "notificacoes_email", "acoes_administrativas"]) {
+                assert.ok(antes[tabela].length > 0, `O cenario precisa conter dados em ${tabela}.`);
+            }
+            const outrosAntes = await registrosDaConta(id, true);
+            const caminho = "/privacidade/conta";
+            assert.equal((await requisicao(caminho, { metodo: "DELETE", dados: { confirmar: true } })).status, 401);
+            assert.equal((await requisicao(caminho, { metodo: "DELETE", cookie: admin.cookie, dados: { confirmar: true } })).status, 403);
+            assert.equal((await requisicao(caminho, { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar: true }, headers: { Origin: "https://origem-nao-autorizada.example.invalid" } })).status, 403);
+            assert.equal((await requisicao(caminho, { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar: true }, headers: { "X-Usuario-Id": String(outra.corpo.usuario.id) } })).status, 401);
+            for (const confirmar of [undefined, false, "true", 1, null]) {
+                const invalida = await requisicao(caminho, { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar } });
+                assert.equal(invalida.status, 400);
+                assert.equal(invalida.corpo.codigo, "CONFIRMACAO_NECESSARIA");
+            }
+            assert.deepEqual(await registrosDaConta(id), antes, "Sem confirmacao todos os dados e acessos devem permanecer intactos.");
+
+            const excluida = await requisicao(`${caminho}?usuario_id=${outra.corpo.usuario.id}`, {
+                metodo: "DELETE", cookie: pessoa.cookie,
+                dados: { confirmar: true, usuario_id: outra.corpo.usuario.id, id: outra.corpo.usuario.id }
+            });
+            assert.equal(excluida.status, 200);
+            assert.equal(excluida.corpo.excluida, true);
+            assert.equal(excluida.headers.get("set-cookie"), null, "Excluir nao deve apagar um cookie mais novo de outra aba.");
+            for (const [tabela, registros] of Object.entries(await registrosDaConta(id))) {
+                assert.deepEqual(registros, [], `A exclusao deve remover os dados proprios em ${tabela}.`);
+            }
+            assert.deepEqual(await registrosDaConta(id, true), outrosAntes, "Contas, demandas, sessoes e registros de terceiros devem permanecer intactos.");
+            assert.deepEqual((await db.query("SELECT chave FROM auth_limites WHERE chave IN ($1, $2)", chavesEmail)).rows, []);
+            assert.deepEqual((await db.query("SELECT * FROM auth_limites WHERE chave NOT IN ($1, $2) ORDER BY chave", chavesEmail)).rows, limitesOutrosAntes, "Limites de IP e de outros e-mails devem ser preservados.");
+            assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 401);
+            assert.equal((await requisicao("/auth/me", { headers: { Authorization: `Bearer ${android.corpo.token}` } })).status, 401);
+            assert.equal((await requisicao(caminho, { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar: true } })).status, 401);
+            assert.equal((await requisicao("/auth/redefinir-senha", { metodo: "POST", dados: { token: tokenRedefinicao, senha: "Senha-apos-exclusao-123" } })).status, 400);
+            assert.equal((await requisicao("/auth/login", { metodo: "POST", dados: { email: pessoa.corpo.usuario.email, senha } })).status, 401);
+            assert.equal((await requisicao("/auth/me", { cookie: outra.cookie })).status, 200);
+            assert.equal((await requisicao("/admin/pessoas", { cookie: admin.cookie })).status, 200);
+
+            const outraAntes = (await requisicao("/auth/me", { cookie: outra.cookie })).corpo.assinatura;
+            const reutilizada = await requisicao(`/admin/pessoas/${outra.corpo.usuario.id}/assinatura`, {
+                metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia }
+            });
+            assert.equal(reutilizada.status, 409, "Apagar a conta nao pode permitir reutilizar um pagamento antigo.");
+            assert.equal(reutilizada.corpo.codigo, "REFERENCIA_UTILIZADA");
+            assert.deepEqual((await requisicao("/auth/me", { cookie: outra.cookie })).corpo.assinatura, outraAntes);
+            const referencias = (await db.query("SELECT referencia_hash FROM referencias_pagamento_excluidas WHERE referencia_hash = $1", [createHash("sha256").update(referencia).digest("hex")])).rows;
+            assert.equal(referencias.length, 1);
+            assert.doesNotMatch(JSON.stringify(referencias), /excluir-cadastro@example|excluir-cadastro-pagamento/);
+        });
+    });
+
+    await t.test("exclusao direta continua disponivel com acesso expirado bloqueio e aceite pendente", async () => {
+        await db.query("DELETE FROM auth_limites");
+        const pessoa = await cadastrar("Excluir Expirada", "excluir-expirada@example.invalid");
+        const id = pessoa.corpo.usuario.id;
+        await criarDemandaLixeira(pessoa.cookie, demanda("9411"));
+        await db.query(`UPDATE usuarios SET teste_expira_em = CURRENT_TIMESTAMP - INTERVAL '1 day',
+            bloqueado_em = CURRENT_TIMESTAMP, termos_versao = NULL, termos_aceitos_em = NULL WHERE id = $1`, [id]);
+        const conta = await requisicao("/auth/me", { cookie: pessoa.cookie });
+        assert.equal(conta.corpo.assinatura.status, "expirada");
+        assert.equal(conta.corpo.usuario.bloqueado, true);
+        assert.equal(conta.corpo.usuario.politica_aceita, false);
+        assert.equal((await requisicao("/privacidade/conta", { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar: true } })).status, 200);
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM usuarios WHERE id = $1", [id])).rows[0].n), 0);
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM demandas WHERE usuario_id = $1", [id])).rows[0].n), 0);
+        assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 401);
+    });
+
+    await t.test("falha ao concluir exclusao reverte dados sessoes e reserva da referencia de pagamento", async () => {
+        const { criarServicoPrivacidade } = require("../services/privacidadeService");
+        await db.query("DELETE FROM auth_limites");
+        const pessoa = await cadastrar("Excluir Rollback", "excluir-rollback@example.invalid");
+        const id = pessoa.corpo.usuario.id;
+        const referencia = "excluir-rollback-pagamento-001";
+        await criarDemandaLixeira(pessoa.cookie, demanda("9421"));
+        assert.equal((await requisicao(`/admin/pessoas/${id}/assinatura`, {
+            metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia }
+        })).status, 201);
+        assert.equal((await requisicao("/privacidade/solicitacoes", {
+            metodo: "POST", cookie: pessoa.cookie, dados: { tipo: "acesso", descricao: "Solicito acesso aos registros da minha conta." }
+        })).status, 201);
+        const antes = await registrosDaConta(id);
+        const servico = criarServicoPrivacidade({ inicializar: async () => {}, db: {
+            connect: async () => {
+                const client = await db.connect();
+                return {
+                    query: async (sql, parametros) => {
+                        if (sql === "DELETE FROM usuarios WHERE id = $1") throw new Error("Falha sintetica antes de concluir exclusao");
+                        return client.query(sql, parametros);
+                    },
+                    release: () => client.release()
+                };
+            }
+        } });
+        await assert.rejects(servico.excluirConta(id, true), /Falha sintetica antes de concluir exclusao/);
+        assert.deepEqual(await registrosDaConta(id), antes, "Uma falha tardia deve preservar integralmente a conta.");
+        assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM referencias_pagamento_excluidas WHERE referencia_hash = $1", [createHash("sha256").update(referencia).digest("hex")])).rows[0].n), 0);
+        assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 200);
+        assert.equal((await requisicao("/demandas", { cookie: pessoa.cookie })).corpo.length, 1);
     });
 });

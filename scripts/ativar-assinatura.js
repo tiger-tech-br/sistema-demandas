@@ -1,4 +1,5 @@
 if (require.main === module) require("../config/env");
+const { createHash } = require("node:crypto");
 const db = require("../config/db");
 const inicializarBanco = require("../config/initDb");
 const { obterPlanos } = require("../services/assinaturaService");
@@ -28,6 +29,11 @@ async function ativarAssinatura(opcoes) {
     try {
         await client.query("BEGIN");
         await client.query("SELECT pg_advisory_xact_lock(715120263)");
+        const excluida = await client.query("SELECT 1 FROM referencias_pagamento_excluidas WHERE referencia_hash = $1",
+            [createHash("sha256").update(validado.referencia).digest("hex")]);
+        if (excluida.rowCount) {
+            throw new Error("Esta referencia de pagamento ja foi utilizada. A assinatura nao foi prorrogada novamente.");
+        }
         const usuario = (await client.query("SELECT id, papel, acesso_permanente, cancelamento_confirmado_em FROM usuarios WHERE email = $1 FOR UPDATE", [validado.email])).rows[0];
         if (!usuario) throw new Error("Conta nao encontrada. Cadastre a conta de destino primeiro.");
         if (usuario.papel !== "profissional") throw new Error("A conta de administrador nao utiliza assinatura de demandas.");

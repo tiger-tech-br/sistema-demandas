@@ -1,7 +1,8 @@
+const { createHash } = require("node:crypto");
 const dbPadrao = require("../config/db");
 const inicializarBanco = require("../config/initDb");
 
-const VERSAO_POLITICA = "2026-10-31";
+const VERSAO_POLITICA = "2026-11-03";
 const TIPOS_SOLICITACAO = new Set(["acesso", "correcao", "exclusao", "outro"]);
 const CAMPOS_SOLICITACAO = "id, tipo, descricao, status, criado_em, resposta, respondido_em";
 const CAMPOS_PERFIL = `id, nome, email, papel, criado_em, bloqueado_em,
@@ -42,7 +43,7 @@ const POLITICA = {
         },
         {
             titulo: "Conservação e exclusão",
-            texto: "Os dados permanecem armazenados enquanto a conta for mantida para disponibilizar o serviço e os registros do usuário. A expiração do teste ou o cancelamento da renovação não exclui a conta ou suas demandas. A necessidade de conservação é examinada ao atender um pedido de exclusão; obrigações legais e outras hipóteses legais de conservação podem impedir a eliminação imediata de certos registros. Cópias de segurança eventualmente existentes precisam ser consideradas no atendimento e informadas na resposta. Não há exclusão automática ao enviar ou receber resposta a uma solicitação."
+            texto: "A expiração do teste ou o cancelamento da renovação não exclui a conta ou suas demandas. O profissional pode usar Excluir cadastro em Minha conta ou Privacidade: após a confirmação no modal, a aplicação apaga definitivamente do banco ativo o cadastro, as demandas, inclusive a lixeira, as sessões, os links de recuperação, as solicitações, o histórico de ativações e as notificações vinculadas. A operação encerra o acesso imediatamente e não pode ser desfeita. Para impedir o reaproveitamento de pagamentos já utilizados, permanecem somente hashes das referências, sem nome, e-mail ou vínculo com a conta. A exclusão local não cancela cobranças no PagBank nem apaga mensagens já enviadas, dados mantidos pelos fornecedores ou cópias de segurança. Questões sobre esses registros externos podem ser encaminhadas ao contato de privacidade. O formulário de solicitações continua disponível para outros pedidos e sua resposta não executa exclusão automaticamente."
         },
         {
             titulo: "Seus direitos e como solicitar",
@@ -58,7 +59,7 @@ const POLITICA = {
         },
         {
             titulo: "Atualizações e referências",
-            texto: "Esta é a versão 2026-10-31. Alterações relevantes serão apresentadas para nova ciência e aceite, quando exigido pelo serviço. Referências oficiais: Lei nº 13.709/2018, em https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm; orientações da ANPD sobre direitos, em https://www.gov.br/anpd/pt-br/assuntos/titular-de-dados-1/direito-dos-titulares, e perguntas frequentes, em https://www.gov.br/anpd/pt-br/acesso-a-informacao/perguntas-frequentes."
+            texto: "Esta é a versão 2026-11-03. Alterações relevantes serão apresentadas para nova ciência e aceite, quando exigido pelo serviço. Referências oficiais: Lei nº 13.709/2018, em https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm; orientações da ANPD sobre direitos, em https://www.gov.br/anpd/pt-br/assuntos/titular-de-dados-1/direito-dos-titulares, e perguntas frequentes, em https://www.gov.br/anpd/pt-br/acesso-a-informacao/perguntas-frequentes."
         }
     ],
     termos: [
@@ -72,7 +73,7 @@ const POLITICA = {
         },
         {
             titulo: "Renovação e cancelamento",
-            texto: "O pedido de cancelamento pode ser registrado na área de assinatura. Como a cobrança é gerenciada no PagBank, a interrupção da renovação depende da atuação e conferência do responsável nesse provedor. O aplicativo apresenta o pedido como pendente até a confirmação; não considere a cobrança cancelada apenas por enviar o pedido. Após a confirmação, o acesso continua até o fim do período já disponibilizado e uma mensagem transacional é preparada para o e-mail cadastrado. Cancelar a renovação não exclui seus dados. Solicite exclusão na área Privacidade ou pelo contato de suporte."
+            texto: "O pedido de cancelamento pode ser registrado na área de assinatura. Como a cobrança é gerenciada no PagBank, a interrupção da renovação depende da atuação e conferência do responsável nesse provedor. O aplicativo apresenta o pedido como pendente até a confirmação; não considere a cobrança cancelada apenas por enviar o pedido. Após a confirmação, o acesso continua até o fim do período já disponibilizado e uma mensagem transacional é preparada para o e-mail cadastrado. Cancelar a renovação não exclui seus dados. Excluir cadastro é uma ação separada e definitiva, disponível para o profissional em Minha conta e Privacidade, mediante confirmação. A exclusão encerra o acesso imediatamente, inclusive durante o período pago, e não cancela nem estorna cobranças no PagBank."
         },
         {
             titulo: "Responsabilidade pelos registros e prazos",
@@ -174,6 +175,43 @@ function criarServicoPrivacidade({ db = dbPadrao, inicializar = inicializarBanco
         } finally { client.release(); }
     }
 
+    async function excluirConta(usuarioId, confirmar) {
+        if (confirmar !== true) {
+            throw erroPublico(400, "CONFIRMACAO_NECESSARIA", "Confirme a exclusão definitiva do seu cadastro.");
+        }
+        await inicializar();
+        const client = await db.connect();
+        try {
+            await client.query("BEGIN");
+            // Usa a mesma ordem de bloqueios do registro de pagamentos.
+            await client.query("SELECT pg_advisory_xact_lock(715120263)");
+            const usuario = (await client.query("SELECT id, papel, email FROM usuarios WHERE id = $1 FOR UPDATE", [usuarioId])).rows[0];
+            if (!usuario) throw erroPublico(404, "USUARIO_NAO_ENCONTRADO", "Conta não encontrada.");
+            if (usuario.papel !== "profissional") {
+                throw erroPublico(403, "PERFIL_NAO_PERMITIDO", "A exclusão direta está disponível somente para contas profissionais.");
+            }
+            // Mantem apenas hashes sem vinculo com a conta para impedir reutilizar pagamentos.
+            await client.query(`INSERT INTO referencias_pagamento_excluidas (referencia_hash)
+                SELECT encode(sha256(convert_to(referencia, 'UTF8')), 'hex')
+                FROM ativacoes_assinatura WHERE usuario_id = $1 ON CONFLICT DO NOTHING`, [usuarioId]);
+            await client.query("DELETE FROM notificacoes_email WHERE usuario_id = $1", [usuarioId]);
+            await client.query("DELETE FROM solicitacoes_privacidade WHERE usuario_id = $1", [usuarioId]);
+            await client.query("DELETE FROM acoes_administrativas WHERE usuario_id = $1", [usuarioId]);
+            await client.query("DELETE FROM ativacoes_assinatura WHERE usuario_id = $1", [usuarioId]);
+            await client.query("DELETE FROM demandas WHERE usuario_id = $1", [usuarioId]);
+            const chavesEmail = [`login:email:${usuario.email}`, `redefinicao:solicitar:email:${usuario.email}`]
+                .map(chave => createHash("sha256").update(chave).digest("hex"));
+            await client.query("DELETE FROM auth_limites WHERE chave IN ($1, $2)", chavesEmail);
+            // As FKs revogam todas as sessoes e tokens de redefinicao na mesma transacao.
+            await client.query("DELETE FROM usuarios WHERE id = $1", [usuarioId]);
+            await client.query("COMMIT");
+            return { excluida: true, mensagem: "Cadastro excluído definitivamente." };
+        } catch (erro) {
+            await client.query("ROLLBACK").catch(() => {});
+            throw erro;
+        } finally { client.release(); }
+    }
+
     async function listarSolicitacoesAdministrativas() {
         await inicializar();
         const resultado = await db.query(`SELECT s.id, s.tipo, s.descricao, s.status, s.criado_em, s.resposta,
@@ -191,6 +229,8 @@ function criarServicoPrivacidade({ db = dbPadrao, inicializar = inicializarBanco
         const client = await db.connect();
         try {
             await client.query("BEGIN");
+            // Mantem a ordem de bloqueios compativel com a exclusao da conta.
+            await client.query("SELECT pg_advisory_xact_lock(715120263)");
             const anterior = (await client.query(`SELECT s.id, s.usuario_id, s.tipo, s.status, u.nome, u.email
                 FROM solicitacoes_privacidade s JOIN usuarios u ON u.id = s.usuario_id
                 WHERE s.id = $1 FOR UPDATE OF s`, [solicitacaoId])).rows[0];
@@ -213,7 +253,7 @@ function criarServicoPrivacidade({ db = dbPadrao, inicializar = inicializarBanco
         } finally { client.release(); }
     }
 
-    return { aceitarTermos, listarSolicitacoes, criarSolicitacao, exportarDados,
+    return { aceitarTermos, listarSolicitacoes, criarSolicitacao, exportarDados, excluirConta,
         listarSolicitacoesAdministrativas, responderSolicitacao };
 }
 

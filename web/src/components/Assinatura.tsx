@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, CalendarDays, Check, CreditCard, RefreshCw, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
+import { ArrowRight, CalendarDays, Check, CreditCard, RefreshCw, ShieldCheck, Sparkles, Trash2, UserRound } from 'lucide-react';
 import { api, geracaoSessao } from '../api';
-import { dataFormatada, type Assinatura as TipoAssinatura, type Conta, type Plano, type Cobranca } from '../types';
+import { dataFormatada, type Assinatura as TipoAssinatura, type Conta, type Plano, type Cobranca, type Visao } from '../types';
 
-export function MinhaConta({ conta }: { conta: Conta }) {
+export function MinhaConta({ conta, navegar, excluirConta }: { conta: Conta; navegar: (visao: Visao) => void; excluirConta: () => void }) {
   const admin = conta.usuario.papel === 'admin';
-  return <div className="page account-page"><div className="page-header"><div><span className="eyebrow">{admin ? 'ADMINISTRAÇÃO DA PLATAFORMA' : 'SEU ESPAÇO INDIVIDUAL'}</span><h1>Minha conta</h1><p>Os dados que identificam seu acesso ao sistema.</p></div></div><section className="panel account-card"><span className="account-portrait"><UserRound size={36}/></span><div className="account-identity"><h2>{conta.usuario.nome}</h2><p>{conta.usuario.email}</p><span className="status done"><ShieldCheck size={13}/>{admin ? 'Administrador do sistema' : 'Conta individual'}</span></div><div className="account-details"><div><span>Nome</span><strong>{conta.usuario.nome}</strong></div><div><span>E-mail de acesso</span><strong>{conta.usuario.email}</strong></div><div><span>{admin ? 'Sua função' : 'Sua privacidade'}</span><p>{admin ? 'Administrar as pessoas assinantes, seus períodos de acesso e a conferência de pagamentos.' : 'As demandas cadastradas ficam vinculadas exclusivamente à sua conta.'}</p></div></div></section><div className="account-note"><ShieldCheck size={21}/><p>Ao usar um computador compartilhado, lembre-se de sair da conta quando terminar.</p></div></div>;
+  const { assinatura } = conta;
+  const permanente = assinatura.acesso_permanente || assinatura.status === 'gratuita';
+  const paga = Boolean(assinatura.plano && !permanente);
+  const pendente = assinatura.renovacao_status === 'cancelamento_solicitado';
+  const cancelada = assinatura.renovacao_status === 'cancelada';
+  return <div className="page account-page">
+    <div className="page-header"><div><span className="eyebrow">{admin ? 'ADMINISTRAÇÃO DA PLATAFORMA' : 'SEU ESPAÇO INDIVIDUAL'}</span><h1>Minha conta</h1><p>Os dados que identificam seu acesso ao sistema.</p></div></div>
+    <section className="panel account-card"><span className="account-portrait"><UserRound size={36}/></span><div className="account-identity"><h2>{conta.usuario.nome}</h2><p>{conta.usuario.email}</p><span className="status done"><ShieldCheck size={13}/>{admin ? 'Administrador do sistema' : 'Conta individual'}</span></div><div className="account-details"><div><span>Nome</span><strong>{conta.usuario.nome}</strong></div><div><span>E-mail de acesso</span><strong>{conta.usuario.email}</strong></div><div><span>{admin ? 'Sua função' : 'Sua privacidade'}</span><p>{admin ? 'Administrar as pessoas assinantes, seus períodos de acesso e a conferência de pagamentos.' : 'As demandas cadastradas ficam vinculadas exclusivamente à sua conta.'}</p></div></div></section>
+    <section className="panel account-management" aria-label="Gerenciar conta">
+      {!admin && <div className="account-management-row"><div><h2>{permanente ? 'Meu acesso' : 'Plano e assinatura'}</h2><p>{permanente ? 'Seu acesso é gratuito e permanente, sem cobrança para cancelar.' : paga ? pendente ? 'Seu pedido está pendente. Acompanhe a confirmação do cancelamento das próximas cobranças.' : cancelada ? 'A renovação foi cancelada. Sua conta e suas demandas permanecem salvas.' : 'Você pode pedir o cancelamento das próximas cobranças e manter sua conta e suas demandas.' : 'Consulte seu período de acesso e as opções de contratação. Se já contratou e o pagamento ainda não aparece, entre em contato com o responsável para conferir ou cancelar a contratação no PagBank.'}</p>{paga && <p>O cancelamento precisa ser concluído no PagBank e confirmado no sistema. O período já liberado é mantido até {dataFormatada(assinatura.acesso_ate, true)}.</p>}</div><button className="ghost-btn" onClick={() => navegar('assinatura')}><CreditCard size={18}/>{paga && pendente ? 'Acompanhar cancelamento' : paga && !cancelada ? 'Cancelar assinatura' : permanente ? 'Ver meu acesso' : 'Ver plano e assinatura'}</button></div>}
+      <div className="account-management-row"><div><h2>Dados e privacidade</h2><p>Exporte seus dados e consulte as informações de privacidade da sua conta.</p></div><button className="ghost-btn" onClick={() => navegar('privacidade')}><ShieldCheck size={18}/>Meus dados e privacidade</button></div>
+      {!admin && <div className="account-management-row"><div><h2>Excluir cadastro</h2><p>Apague sua conta e seus dados definitivamente.</p></div><button className="danger-btn" onClick={excluirConta}><Trash2 size={18}/>Excluir cadastro</button></div>}
+    </section>
+    <div className="account-note"><ShieldCheck size={21}/><p>Ao usar um computador compartilhado, lembre-se de sair da conta quando terminar.</p></div>
+  </div>;
 }
 
 async function abrirCheckout(plano: 'mensal' | 'anual', geracao: number) {

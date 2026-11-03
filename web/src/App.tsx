@@ -10,7 +10,7 @@ import Assinatura, { BoasVindas, MinhaConta } from './components/Assinatura';
 import Brand from './components/Brand';
 import AvisoPrazo from './components/AvisoPrazo';
 import Admin from './components/Admin';
-import Privacidade, { PoliticaModal } from './components/Privacidade';
+import Privacidade, { ExcluirContaModal, PoliticaModal } from './components/Privacidade';
 import Lixeira, { ConfirmacaoLixeira } from './components/Lixeira';
 
 const EVENTO_ABAS = 'demandas-conta-evento';
@@ -39,6 +39,7 @@ export default function App() {
   const [erroDemandas, setErroDemandas] = useState('');
   const [concluindo, setConcluindo] = useState<number | null>(null);
   const [modal, setModal] = useState(false);
+  const [exclusaoCadastroAberta, setExclusaoCadastroAberta] = useState(false);
   const [demandaParaExcluir, setDemandaParaExcluir] = useState<Demanda | null>(null);
   const [quantidadeExcluirTudo, setQuantidadeExcluirTudo] = useState<number | null>(null);
   const [avisoPrazo, setAvisoPrazo] = useState<Demanda[]>([]);
@@ -54,7 +55,7 @@ export default function App() {
     pedidoDemandas.current++;
     void limparSessaoLocal();
     contaRef.current = null;
-    setConta(null); setDemandas([]); setCobranca(null); setModal(false); setDemandaParaExcluir(null); setQuantidadeExcluirTudo(null); setAvisoPrazo([]); setConcluindo(null); setCarregando(false); setSaindo(false); setAtualizando(false); setErroDemandas(''); setAviso(null); setVisao('dashboard'); setAvisoAcesso(mensagem); setPronto(true);
+    setConta(null); setDemandas([]); setCobranca(null); setModal(false); setExclusaoCadastroAberta(false); setDemandaParaExcluir(null); setQuantidadeExcluirTudo(null); setAvisoPrazo([]); setConcluindo(null); setCarregando(false); setSaindo(false); setAtualizando(false); setErroDemandas(''); setAviso(null); setVisao('dashboard'); setAvisoAcesso(mensagem); setPronto(true);
   }, []);
 
   function notificarAbas() {
@@ -165,6 +166,13 @@ export default function App() {
     finally { if (geracao === geracaoSessao()) setSaindo(false); }
   }
 
+  async function excluirMinhaConta() {
+    const geracao = geracaoSessao();
+    const resultado = await api<{ excluida: boolean; mensagem: string }>('/privacidade/conta', 'DELETE', { confirmar: true });
+    if (geracao !== geracaoSessao()) return;
+    limparTela(resultado.mensagem); notificarAbas();
+  }
+
   async function salvar(dados: NovaDemanda) {
     const geracao = geracaoSessao();
     const resultado = await api<{ demanda: Demanda }>('/demandas', 'POST', dados);
@@ -243,10 +251,11 @@ export default function App() {
     {!admin && !bloqueado && visao === 'demandas' && (conta.assinatura.status === 'expirada' ? <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando} alterar={alterarAssinatura}/> : <Demandas key={conta.usuario.id} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} excluir={setDemandaParaExcluir} excluirTudo={solicitarExcluirTudo} nova={nova} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>)}
     {!admin && !bloqueado && visao === 'lixeira' && (conta.assinatura.status === 'expirada' ? <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando} alterar={alterarAssinatura}/> : <Lixeira key={conta.usuario.id} navegar={setVisao} aoAlterar={recarregarAposLixeira}/>)}
     {!admin && visao === 'assinatura' && <Assinatura conta={conta} planos={planos} cobranca={cobranca} recarregar={() => void atualizarAcesso()} carregando={atualizando} alterar={alterarAssinatura}/>}
-    {visao === 'conta' && <MinhaConta conta={conta}/>}
-    {visao === 'privacidade' && <Privacidade key={conta.usuario.id} conta={conta}/>}
+    {visao === 'conta' && <MinhaConta conta={conta} navegar={setVisao} excluirConta={() => setExclusaoCadastroAberta(true)}/>}
+    {visao === 'privacidade' && <Privacidade key={conta.usuario.id} conta={conta} excluirConta={() => setExclusaoCadastroAberta(true)}/>}
     {precisaAceite && visao !== 'privacidade' && <PoliticaModal obrigatoria fechar={() => {}} aceita={() => setConta(anterior => anterior ? { ...anterior, usuario: { ...anterior.usuario, politica_aceita: true } } : null)} sair={() => void sair()} gerenciarPrivacidade={() => setVisao('privacidade')}/>}
     {precisaBoasVindas && <BoasVindas conta={conta} cobranca={cobranca} concluir={() => setConta(anterior => anterior ? { ...anterior, usuario: { ...anterior.usuario, boas_vindas_vistas: true } } : null)}/>}
+    {!admin && exclusaoCadastroAberta && <ExcluirContaModal confirmar={excluirMinhaConta} fechar={() => setExclusaoCadastroAberta(false)} gerenciarAssinatura={conta.assinatura.plano && conta.assinatura.renovacao_status !== 'cancelada' ? () => { setExclusaoCadastroAberta(false); setVisao('assinatura'); } : undefined}/>}
     {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && modal && <NovaDemandaModal salvar={salvar} fechar={() => setModal(false)}/>}
     {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !modal && demandaParaExcluir && <ConfirmacaoLixeira titulo="Mover demanda para a lixeira?" textoConfirmar="Mover para a lixeira" confirmar={() => moverParaLixeira(demandaParaExcluir)} fechar={() => setDemandaParaExcluir(null)}><p>A demanda <strong>#{demandaParaExcluir.numero_demanda}</strong>, de <strong>{demandaParaExcluir.beneficiario}</strong>, sairá da sua lista e dos lembretes de prazo.</p><p>Você poderá restaurá-la na lixeira antes de excluir definitivamente.</p></ConfirmacaoLixeira>}
     {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !modal && !demandaParaExcluir && quantidadeExcluirTudo !== null && <ConfirmacaoLixeira titulo="Excluir todas as demandas?" textoConfirmar="Excluir tudo" confirmar={moverTodasParaLixeira} fechar={() => setQuantidadeExcluirTudo(null)}><p><strong>{quantidadeExcluirTudo} {quantidadeExcluirTudo === 1 ? 'demanda' : 'demandas'}</strong> da sua conta {quantidadeExcluirTudo === 1 ? 'será movida' : 'serão movidas'} para a lixeira. Isso inclui <strong>todas as demandas concluídas e as que estão fora dos filtros</strong> da lista.</p><p>Você poderá restaurá-las na lixeira. A exclusão definitiva só acontece ao esvaziar a lixeira.</p></ConfirmacaoLixeira>}

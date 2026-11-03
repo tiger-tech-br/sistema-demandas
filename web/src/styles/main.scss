@@ -267,6 +267,17 @@ textarea:focus-visible { outline: 3px solid #58cacc; outline-offset: 3px; }
 .renewal-confirm strong { font-size: 15px; }
 .renewal-confirm p { margin-top: 10px; }
 .renewal-confirm > div { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.account-management { max-width: 720px; margin-top: 22px; padding: 24px; }
+.account-management-row { display: flex; flex-direction: column; align-items: flex-start; gap: 17px; min-width: 0; }
+.account-management-row + .account-management-row { margin-top: 23px; padding-top: 23px; border-top: 1px solid #edf2f7; }
+.account-management-row h2 { font-size: 19px; margin-bottom: 10px; }
+.account-management-row p { font-size: 14px; color: #7a8fa7; line-height: 1.8; }
+.account-management-row p + p { margin-top: 10px; }
+.account-management-row > button { max-width: 100%; white-space: normal; text-align: left; }
+.account-management-row > button svg { flex-shrink: 0; }
+.account-delete-description { color: #6c8098; margin: 14px 0 22px; line-height: 1.7; }
+.account-delete-description p + p { margin-top: 12px; }
+.account-delete-modal .modal-footer { flex-wrap: wrap; }
 @media (min-width: 1400px) { .admin-page .metric-grid { grid-template-columns: repeat(5,minmax(0,1fr)); } }
 @media (max-width: 900px) { .privacy-grid { grid-template-columns: 1fr; } .privacy-actions { align-items: flex-start; } .welcome-plans { gap: 12px; } .welcome-plans .plan-card { padding: 20px 15px; } .welcome-plans .plan-price { font-size: 30px; } }
 @media (max-width: 780px) {
@@ -284,4 +295,7 @@ textarea:focus-visible { outline: 3px solid #58cacc; outline-offset: 3px; }
   .policy-copy { padding: 15px; } .policy-modal .modal-footer { flex-wrap: wrap; }
   .policy-modal .modal-footer button { flex: 1; }
   .renewal-panel { padding: 20px; }
+  .account-management { padding: 20px; }
+  .account-management-row > button { width: 100%; }
+  .account-delete-modal .modal-footer > button { width: 100%; }
 }

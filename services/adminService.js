@@ -1,3 +1,4 @@
+const { createHash } = require("node:crypto");
 const db = require("../config/db");
 const inicializarBanco = require("../config/initDb");
 const { obterAssinatura, obterPlanos } = require("./assinaturaService");
@@ -51,6 +52,11 @@ async function ativarPlano(administradorId, pessoaId, dados) {
         await client.query("BEGIN");
         // A CLI usa o mesmo bloqueio: uma referencia nao pode prorrogar dois acessos.
         await client.query("SELECT pg_advisory_xact_lock(715120263)");
+        const excluida = await client.query("SELECT 1 FROM referencias_pagamento_excluidas WHERE referencia_hash = $1",
+            [createHash("sha256").update(referencia).digest("hex")]);
+        if (excluida.rowCount) {
+            throw erroPublico(409, "REFERENCIA_UTILIZADA", "Esta referencia de pagamento ja foi utilizada. Nenhum acesso foi alterado.");
+        }
         const usuario = await buscarPessoa(client, pessoaId, true);
         const anterior = (await client.query(`SELECT id, usuario_id, referencia, plano, valor_centavos, acesso_ate, ativado_em
             FROM ativacoes_assinatura WHERE referencia = $1`, [referencia])).rows[0];

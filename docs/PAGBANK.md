@@ -84,7 +84,9 @@ A confirmação administrativa usa `POST /admin/pessoas/:id/cancelamento`:
 
 O acesso existente é mantido até o vencimento. Uma repetição com a mesma referência não cria outro evento de e-mail; uma referência diferente após a confirmação é recusada. `email_confirmacao: "pendente"` informa a situação da fila, sem afirmar entrega. Retentativas e configuração estão em [E-mail e privacidade](EMAIL-PRIVACIDADE.md).
 
-O pedido no aplicativo e a confirmação local não enviam uma ordem de cancelamento ao PagBank. A ação manual no gateway é indispensável. Sair da conta, bloquear acesso, expirar o período ou conceder gratuidade também não interrompe a recorrência. Cancelamento não exclui dados, não executa estorno e não equivale a um pedido de exclusão.
+O pedido no aplicativo e a confirmação local não enviam uma ordem de cancelamento ao PagBank. A ação manual no gateway é indispensável. Sair da conta, bloquear acesso, expirar o período, conceder gratuidade ou excluir o cadastro também não interrompe a recorrência. O pedido de cancelamento continua disponível para profissionais autenticados mesmo com acesso bloqueado ou expirado. Cancelamento não exclui dados nem executa estorno.
+
+**Excluir cadastro** é uma operação separada e definitiva: após confirmação no modal, remove do banco ativo a conta profissional e seus dados e encerra o acesso imediatamente. Não cancela nem estorna cobranças externas; o modal informa essa limitação. Referências de pagamentos das contas excluídas ficam reservadas somente por hash, sem vínculo com o titular, e não podem conceder outro período pelo painel ou pela CLI.
 
 ## Nova contratação após cancelamento
 
