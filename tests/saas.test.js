@@ -16,7 +16,7 @@ let carla;
 let vencimento;
 
 const senha = "Senha-de-teste-123";
-const aceiteTermos = { aceite_termos: true, versao_termos: "2026-11-03" };
+const aceiteTermos = { aceite_termos: true, versao_termos: "2026-11-03.1" };
 
 async function requisicao(caminho, { metodo = "GET", cookie, dados, headers = {} } = {}) {
     const resposta = await fetch(`${base}${caminho}`, {
@@ -498,7 +498,7 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
         const concessao = { email: "permanente@example.invalid", administrador: "administrador@example.invalid", confirmar: true };
         await assert.rejects(concederAcessoPermanente({ ...concessao, confirmar: false }), /confirmar/);
         await assert.rejects(concederAcessoPermanente({ ...concessao, administrador: "bruno@example.com" }), /Administrador ativo/);
-        await assert.rejects(concederAcessoPermanente({ ...concessao, email: "bruno@example.com" }), /assinatura paga/);
+        await assert.rejects(concederAcessoPermanente({ ...concessao, email: "bruno@example.com" }), /assinatura|contrata/);
         assert.equal((await concederAcessoPermanente(concessao)).alterado, true);
         assert.equal((await concederAcessoPermanente(concessao)).alterado, false);
         assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM acoes_administrativas WHERE usuario_id = $1 AND acao = 'acesso_permanente_concedido'", [id])).rows[0].n), 1);
@@ -722,6 +722,8 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
             assert.equal(nova.corpo.pessoa.assinatura.renovacao_status, "ativa");
             assert.equal(nova.corpo.pessoa.assinatura.cancelamento_solicitado_em, null);
             assert.equal(nova.corpo.pessoa.assinatura.cancelamento_confirmado_em, null);
+            assert.equal(nova.corpo.pessoa.assinatura.contratacao_pendente, false);
+            assert.equal(nova.corpo.pessoa.assinatura.contratacao_plano, null);
             assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } })).status, 409);
         } finally {
             if (anterior) app.locals.servicoNotificacoes = anterior;
@@ -1000,7 +1002,7 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
         assert.deepEqual(await lerRegistros(), depois, "Repetir a operacao nao deve alterar datas nem registros ja na lixeira.");
     });
 
-    await t.test("excluir cadastro exige confirmacao e apaga so o titular com assinatura recorrente sem revogar outras contas", async () => {
+    await t.test("excluir cadastro pago aguarda encerramento confirmado e depois apaga so o titular sem revogar outras contas", async () => {
         await comRecuperacao(async contexto => {
             const pessoa = await cadastrar("Excluir Cadastro", "excluir-cadastro@example.invalid");
             const outra = await cadastrar("Preservar Cadastro", "preservar-cadastro@example.invalid");
@@ -1052,13 +1054,56 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
             }
             assert.deepEqual(await registrosDaConta(id), antes, "Sem confirmacao todos os dados e acessos devem permanecer intactos.");
 
-            const excluida = await requisicao(`${caminho}?usuario_id=${outra.corpo.usuario.id}`, {
+            const pendente = await requisicao(`${caminho}?usuario_id=${outra.corpo.usuario.id}`, {
                 metodo: "DELETE", cookie: pessoa.cookie,
                 dados: { confirmar: true, usuario_id: outra.corpo.usuario.id, id: outra.corpo.usuario.id }
             });
+            assert.equal(pendente.status, 202);
+            assert.equal(pendente.corpo.excluida, false);
+            assert.equal(pendente.corpo.exclusao_pendente, true);
+            assert.equal(pendente.corpo.assinatura.cobranca_precisa_encerramento, true);
+            assert.ok(pendente.corpo.assinatura.exclusao_solicitada_em);
+            assert.equal(pendente.corpo.assinatura.renovacao_status, "cancelamento_solicitado");
+            assert.equal(pendente.headers.get("set-cookie"), null, "O pedido nao deve apagar um cookie mais novo de outra aba.");
+            const aguardando = await registrosDaConta(id);
+            for (const tabela of tabelasDaConta.filter(tabela => tabela !== "usuarios")) {
+                assert.deepEqual(aguardando[tabela], antes[tabela], `A espera de cancelamento deve preservar os dados em ${tabela}.`);
+            }
+            assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 200);
+            assert.equal((await requisicao("/auth/me", { headers: { Authorization: `Bearer ${android.corpo.token}` } })).status, 200);
+            const repetida = await requisicao(caminho, { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar: true } });
+            assert.equal(repetida.status, 202);
+            assert.equal(repetida.corpo.assinatura.exclusao_solicitada_em, pendente.corpo.assinatura.exclusao_solicitada_em);
+            assert.equal(repetida.corpo.assinatura.cancelamento_solicitado_em, pendente.corpo.assinatura.cancelamento_solicitado_em);
+            assert.deepEqual(await registrosDaConta(id), aguardando, "Repetir o pedido nao deve mudar datas ou dados.");
+            assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } })).status, 409);
+            const novaAtivacao = await requisicao(`/admin/pessoas/${id}/assinatura`, {
+                metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia: "excluir-cadastro-novo-pagamento" }
+            });
+            assert.equal(novaAtivacao.status, 409);
+            const { ativarAssinatura } = require("../scripts/ativar-assinatura");
+            await assert.rejects(ativarAssinatura({ email: pessoa.corpo.usuario.email, plano: "mensal", referencia: "excluir-cadastro-cli-novo", confirmar: true }), /exclus[aã]o/i);
+            const { concederAcessoPermanente } = require("../scripts/conceder-acesso-permanente");
+            await assert.rejects(concederAcessoPermanente({ email: pessoa.corpo.usuario.email, administrador: "administrador@example.invalid", confirmar: true }), /exclus[aã]o/i);
+            assert.deepEqual(await registrosDaConta(id), aguardando, "A gratuidade nao pode contornar o encerramento da cobranca ou alterar o perfil pendente.");
+            const caminhoCancelamento = `/admin/pessoas/${id}/cancelamento`;
+            for (const confirmado of [undefined, false, "true"]) {
+                assert.equal((await requisicao(caminhoCancelamento, {
+                    metodo: "POST", cookie: admin.cookie,
+                    dados: { referencia: "excluir-cadastro-cancelamento", confirmado_no_pagbank: confirmado }
+                })).status, 400);
+            }
+            assert.deepEqual(await registrosDaConta(id), aguardando, "Sem conferencia expressa do PagBank a conta nao pode ser apagada.");
+            assert.deepEqual(await registrosDaConta(id, true), outrosAntes);
+            const excluida = await requisicao(caminhoCancelamento, {
+                metodo: "POST", cookie: admin.cookie,
+                dados: { referencia: "excluir-cadastro-cancelamento", confirmado_no_pagbank: true }
+            });
             assert.equal(excluida.status, 200);
             assert.equal(excluida.corpo.excluida, true);
-            assert.equal(excluida.headers.get("set-cookie"), null, "Excluir nao deve apagar um cookie mais novo de outra aba.");
+            assert.equal(excluida.corpo.pessoa, null);
+            assert.equal(excluida.corpo.pessoa_id, id);
+            assert.equal(excluida.corpo.email_confirmacao, null);
             for (const [tabela, registros] of Object.entries(await registrosDaConta(id))) {
                 assert.deepEqual(registros, [], `A exclusao deve remover os dados proprios em ${tabela}.`);
             }
@@ -1103,6 +1148,176 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
         assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 401);
     });
 
+    await t.test("gratuidade e assinatura ja encerrada permitem exclusao direta sem nova espera", async () => {
+        await db.query("DELETE FROM auth_limites");
+        for (const tipo of ["gratuita", "cancelada"]) {
+            const pessoa = await cadastrar("Excluir Sem Cobranca", `excluir-sem-cobranca-${tipo}@example.invalid`);
+            const id = pessoa.corpo.usuario.id;
+            await criarDemandaLixeira(pessoa.cookie, demanda(tipo === "gratuita" ? "9431" : "9432"));
+            if (tipo === "gratuita") {
+                await db.query("UPDATE usuarios SET acesso_permanente = true WHERE id = $1", [id]);
+            } else {
+                assert.equal((await requisicao(`/admin/pessoas/${id}/assinatura`, {
+                    metodo: "POST", cookie: admin.cookie,
+                    dados: { plano: "mensal", referencia: "excluir-sem-cobranca-pagamento" }
+                })).status, 201);
+                const cancelada = await requisicao(`/admin/pessoas/${id}/cancelamento`, {
+                    metodo: "POST", cookie: admin.cookie,
+                    dados: { referencia: "excluir-sem-cobranca-cancelamento", confirmado_no_pagbank: true }
+                });
+                assert.equal(cancelada.status, 200);
+                assert.equal(cancelada.corpo.pessoa.assinatura.renovacao_status, "cancelada");
+                assert.equal(cancelada.corpo.pessoa.assinatura.cobranca_precisa_encerramento, false);
+            }
+            const excluida = await requisicao("/privacidade/conta", { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar: true } });
+            assert.equal(excluida.status, 200);
+            assert.equal(excluida.corpo.excluida, true);
+            for (const registros of Object.values(await registrosDaConta(id))) assert.deepEqual(registros, []);
+            assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 401);
+        }
+    });
+
+    await t.test("assinatura expirada bloqueada e sem aceite tambem aguarda confirmacao antes da exclusao", async () => {
+        await db.query("DELETE FROM auth_limites");
+        const pessoa = await cadastrar("Excluir Paga Expirada", "excluir-paga-expirada@example.invalid");
+        const id = pessoa.corpo.usuario.id;
+        await criarDemandaLixeira(pessoa.cookie, demanda("9441"));
+        assert.equal((await requisicao(`/admin/pessoas/${id}/assinatura`, {
+            metodo: "POST", cookie: admin.cookie,
+            dados: { plano: "mensal", referencia: "excluir-paga-expirada-pagamento" }
+        })).status, 201);
+        await db.query(`UPDATE usuarios SET teste_expira_em = CURRENT_TIMESTAMP - INTERVAL '2 days',
+            assinatura_expira_em = CURRENT_TIMESTAMP - INTERVAL '1 day', bloqueado_em = CURRENT_TIMESTAMP,
+            termos_versao = NULL, termos_aceitos_em = NULL WHERE id = $1`, [id]);
+        const antes = (await requisicao("/auth/me", { cookie: pessoa.cookie })).corpo;
+        assert.equal(antes.usuario.bloqueado, true);
+        assert.equal(antes.usuario.politica_aceita, false);
+        assert.equal(antes.assinatura.status, "expirada");
+        const pendente = await requisicao("/privacidade/conta", { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar: true } });
+        assert.equal(pendente.status, 202);
+        assert.equal(pendente.corpo.excluida, false);
+        assert.equal(pendente.corpo.assinatura.acesso_ate, antes.assinatura.acesso_ate);
+        assert.equal(pendente.corpo.assinatura.cobranca_precisa_encerramento, true);
+        assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 200);
+        assert.equal((await requisicao("/privacidade/dados", { cookie: pessoa.cookie })).corpo.demandas.length, 1);
+        const excluida = await requisicao(`/admin/pessoas/${id}/cancelamento`, {
+            metodo: "POST", cookie: admin.cookie,
+            dados: { referencia: "excluir-paga-expirada-cancelamento", confirmado_no_pagbank: true }
+        });
+        assert.equal(excluida.status, 200);
+        assert.equal(excluida.corpo.excluida, true);
+        assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 401);
+    });
+
+    await t.test("checkout aberto sem ativacao registrada exige conferencia antes de apagar cadastro", async () => {
+        await db.query("DELETE FROM auth_limites");
+        const pessoa = await cadastrar("Excluir Checkout", "excluir-checkout@example.invalid");
+        const id = pessoa.corpo.usuario.id;
+        const linkAnterior = process.env.PAGBANK_LINK_MENSAL;
+        process.env.PAGBANK_LINK_MENSAL = "https://pag.ae/excluir-checkout";
+        try {
+            const checkout = await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } });
+            assert.equal(checkout.status, 200);
+            const conta = (await requisicao("/auth/me", { cookie: pessoa.cookie })).corpo;
+            assert.equal(conta.assinatura.plano, null);
+            assert.equal(conta.assinatura.contratacao_pendente, true);
+            assert.equal(conta.assinatura.contratacao_plano, "mensal");
+            assert.equal(conta.assinatura.cobranca_precisa_encerramento, true);
+            const antesDaGratuidade = await registrosDaConta(id);
+            const { concederAcessoPermanente } = require("../scripts/conceder-acesso-permanente");
+            await assert.rejects(concederAcessoPermanente({ email: pessoa.corpo.usuario.email, administrador: "administrador@example.invalid", confirmar: true }), /assinatura|contrata/i);
+            assert.deepEqual(await registrosDaConta(id), antesDaGratuidade, "Uma contratacao ainda nao conferida nao pode ser convertida em gratuidade.");
+            const pendente = await requisicao("/privacidade/conta", { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar: true } });
+            assert.equal(pendente.status, 202);
+            assert.equal(pendente.corpo.exclusao_pendente, true);
+            assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 200);
+            assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } })).status, 409);
+            const excluida = await requisicao(`/admin/pessoas/${id}/cancelamento`, {
+                metodo: "POST", cookie: admin.cookie,
+                dados: { referencia: "excluir-checkout-conferencia", confirmado_no_pagbank: true }
+            });
+            assert.equal(excluida.status, 200);
+            assert.equal(excluida.corpo.excluida, true);
+            assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 401);
+        } finally {
+            if (linkAnterior === undefined) delete process.env.PAGBANK_LINK_MENSAL;
+            else process.env.PAGBANK_LINK_MENSAL = linkAnterior;
+        }
+    });
+
+    await t.test("novo checkout depois de cancelamento confirmado nao permite apagar com confirmacao antiga", async () => {
+        await db.query("DELETE FROM auth_limites");
+        const pessoa = await cadastrar("Excluir Recontratacao", "excluir-recontratacao@example.invalid");
+        const id = pessoa.corpo.usuario.id;
+        assert.equal((await requisicao(`/admin/pessoas/${id}/assinatura`, {
+            metodo: "POST", cookie: admin.cookie,
+            dados: { plano: "mensal", referencia: "excluir-recontratacao-pagamento" }
+        })).status, 201);
+        const caminhoCancelamento = `/admin/pessoas/${id}/cancelamento`;
+        assert.equal((await requisicao(caminhoCancelamento, {
+            metodo: "POST", cookie: admin.cookie,
+            dados: { referencia: "excluir-recontratacao-cancelamento-antigo", confirmado_no_pagbank: true }
+        })).status, 200);
+        const linkAnterior = process.env.PAGBANK_LINK_MENSAL;
+        process.env.PAGBANK_LINK_MENSAL = "https://pag.ae/excluir-recontratacao";
+        try {
+            assert.equal((await requisicao("/cobranca/checkout", { metodo: "POST", cookie: pessoa.cookie, dados: { plano: "mensal" } })).status, 200);
+            const nova = (await requisicao("/auth/me", { cookie: pessoa.cookie })).corpo.assinatura;
+            assert.equal(nova.contratacao_pendente, true);
+            assert.equal(nova.cobranca_precisa_encerramento, true);
+            const pendente = await requisicao("/privacidade/conta", { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar: true } });
+            assert.equal(pendente.status, 202);
+            assert.equal(pendente.corpo.excluida, false);
+            assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 200);
+            const excluida = await requisicao(caminhoCancelamento, {
+                metodo: "POST", cookie: admin.cookie,
+                dados: { referencia: "excluir-recontratacao-cancelamento-novo", confirmado_no_pagbank: true }
+            });
+            assert.equal(excluida.status, 200);
+            assert.equal(excluida.corpo.excluida, true);
+            assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 401);
+        } finally {
+            if (linkAnterior === undefined) delete process.env.PAGBANK_LINK_MENSAL;
+            else process.env.PAGBANK_LINK_MENSAL = linkAnterior;
+        }
+    });
+
+    await t.test("falha na exclusao apos conferencia reverte cancelamento dados e reserva de pagamento", async () => {
+        await db.query("DELETE FROM auth_limites");
+        const pessoa = await cadastrar("Excluir Pendente Rollback", "excluir-pendente-rollback@example.invalid");
+        const id = pessoa.corpo.usuario.id;
+        const referencia = "excluir-pendente-rollback-pagamento";
+        await criarDemandaLixeira(pessoa.cookie, demanda("9451"));
+        assert.equal((await requisicao(`/admin/pessoas/${id}/assinatura`, {
+            metodo: "POST", cookie: admin.cookie, dados: { plano: "mensal", referencia }
+        })).status, 201);
+        assert.equal((await requisicao("/privacidade/conta", { metodo: "DELETE", cookie: pessoa.cookie, dados: { confirmar: true } })).status, 202);
+        const antes = await registrosDaConta(id);
+        const caminhoCancelamento = `/admin/pessoas/${id}/cancelamento`;
+        const confirmacao = { referencia: "excluir-pendente-rollback-cancelamento", confirmado_no_pagbank: true };
+        await db.query(`CREATE FUNCTION impedir_exclusao_pendente_teste() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                IF OLD.email = 'excluir-pendente-rollback@example.invalid' THEN
+                    RAISE EXCEPTION 'Falha sintetica na exclusao pendente';
+                END IF;
+                RETURN OLD;
+            END; $$;
+            CREATE TRIGGER impedir_exclusao_pendente_teste BEFORE DELETE ON usuarios
+                FOR EACH ROW EXECUTE FUNCTION impedir_exclusao_pendente_teste();`);
+        try {
+            assert.equal((await requisicao(caminhoCancelamento, { metodo: "POST", cookie: admin.cookie, dados: confirmacao })).status, 503);
+            assert.deepEqual(await registrosDaConta(id), antes, "Cancelar e excluir precisam reverter juntos em caso de falha.");
+            assert.equal(Number((await db.query("SELECT COUNT(*) AS n FROM referencias_pagamento_excluidas WHERE referencia_hash = $1", [createHash("sha256").update(referencia).digest("hex")])).rows[0].n), 0);
+            assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 200);
+        } finally {
+            await db.query("DROP TRIGGER impedir_exclusao_pendente_teste ON usuarios; DROP FUNCTION impedir_exclusao_pendente_teste();");
+        }
+        const excluida = await requisicao(caminhoCancelamento, { metodo: "POST", cookie: admin.cookie, dados: confirmacao });
+        assert.equal(excluida.status, 200);
+        assert.equal(excluida.corpo.excluida, true);
+        assert.equal((await requisicao("/auth/me", { cookie: pessoa.cookie })).status, 401);
+    });
+
     await t.test("falha ao concluir exclusao reverte dados sessoes e reserva da referencia de pagamento", async () => {
         const { criarServicoPrivacidade } = require("../services/privacidadeService");
         await db.query("DELETE FROM auth_limites");
@@ -1116,6 +1331,10 @@ test("API SaaS: contas, isolamento, teste gratuito, cobranca e administracao", a
         assert.equal((await requisicao("/privacidade/solicitacoes", {
             metodo: "POST", cookie: pessoa.cookie, dados: { tipo: "acesso", descricao: "Solicito acesso aos registros da minha conta." }
         })).status, 201);
+        assert.equal((await requisicao(`/admin/pessoas/${id}/cancelamento`, {
+            metodo: "POST", cookie: admin.cookie,
+            dados: { referencia: "excluir-rollback-cancelamento", confirmado_no_pagbank: true }
+        })).status, 200);
         const antes = await registrosDaConta(id);
         const servico = criarServicoPrivacidade({ inicializar: async () => {}, db: {
             connect: async () => {

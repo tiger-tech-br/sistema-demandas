@@ -144,6 +144,29 @@ export default function App() {
   useEffect(() => { if (!aviso) return; const timer = window.setTimeout(() => setAviso(null), 6500); return () => clearTimeout(timer); }, [aviso]);
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [conta?.usuario.id]);
 
+  useEffect(() => {
+    if (!conta?.assinatura.exclusao_solicitada_em) return;
+    const geracao = geracaoSessao();
+    const usuarioId = conta.usuario.id;
+    let ativo = true;
+    let consultando = false;
+    const consultar = async () => {
+      if (!ativo || consultando || document.visibilityState === 'hidden' || geracao !== geracaoSessao()) return;
+      consultando = true;
+      try {
+        const dados = await api<Conta>('/auth/me');
+        if (!ativo || geracao !== geracaoSessao()) return;
+        if (dados.usuario.id !== usuarioId) { limparTela('A conta aberta mudou em outra aba. Entre novamente para continuar.'); return; }
+        setConta(dados);
+      } catch { /* Uma sessao revogada encerra a tela pelo evento de autenticacao da API. */ }
+      finally { consultando = false; }
+    };
+    const timer = window.setInterval(() => void consultar(), 10000);
+    window.addEventListener('focus', consultar);
+    document.addEventListener('visibilitychange', consultar);
+    return () => { ativo = false; clearInterval(timer); window.removeEventListener('focus', consultar); document.removeEventListener('visibilitychange', consultar); };
+  }, [conta?.usuario.id, conta?.assinatura.exclusao_solicitada_em, limparTela]);
+
   async function entrar(dados: Conta) {
     const definindo = definirConta(dados);
     const geracao = geracaoSessao();
@@ -168,9 +191,13 @@ export default function App() {
 
   async function excluirMinhaConta() {
     const geracao = geracaoSessao();
-    const resultado = await api<{ excluida: boolean; mensagem: string }>('/privacidade/conta', 'DELETE', { confirmar: true });
+    const resultado = await api<{ excluida: boolean; mensagem: string; assinatura?: AssinaturaTipo }>('/privacidade/conta', 'DELETE', { confirmar: true });
     if (geracao !== geracaoSessao()) return;
-    limparTela(resultado.mensagem); notificarAbas();
+    if (resultado.excluida) { limparTela(resultado.mensagem); notificarAbas(); }
+    else {
+      if (resultado.assinatura) setConta(anterior => anterior ? { ...anterior, assinatura: resultado.assinatura! } : null);
+      setExclusaoCadastroAberta(false); setVisao(contaRef.current?.usuario.politica_aceita ? 'conta' : 'privacidade'); setAviso({ texto: resultado.mensagem, erro: false });
+    }
   }
 
   async function salvar(dados: NovaDemanda) {
@@ -245,6 +272,7 @@ export default function App() {
   const pendentes = demandas.filter(item => !item.concluida && diasAte(item.data_vencimento) >= 0 && diasAte(item.data_vencimento) <= 3).length;
   return <AppShell conta={conta} visao={admin && visao !== 'conta' && visao !== 'privacidade' ? 'admin' : visao} navegar={setVisao} sair={() => void sair()} saindo={saindo} pendentes={pendentes}>
     {aviso && <div className={`toast ${aviso.erro ? 'toast--error' : ''}`} role={aviso.erro ? 'alert' : 'status'}>{aviso.erro ? <AlertCircle size={20}/> : <CheckCircle2 size={20}/>}<span>{aviso.texto}</span><button className="icon-btn" onClick={() => setAviso(null)} aria-label="Fechar aviso"><X size={16}/></button></div>}
+    {!admin && conta.assinatura.exclusao_solicitada_em && <div className="notice account-deletion-pending" role="status"><ShieldAlert size={21}/><div><strong>Exclusão do cadastro em andamento</strong><p>O responsável precisa confirmar o encerramento da cobrança no PagBank. Depois dessa confirmação, sua conta e seus dados serão excluídos automaticamente.</p><button className="text-link" disabled={atualizando} onClick={() => void atualizarAcesso()}>Atualizar situação</button></div></div>}
     {admin && visao !== 'conta' && visao !== 'privacidade' && <Admin key={conta.usuario.id} planos={planos}/>}
     {bloqueado && visao !== 'conta' && visao !== 'privacidade' && visao !== 'assinatura' && <section className="panel blocked-access-panel" aria-labelledby="titulo-acesso-bloqueado"><span className="empty-icon"><ShieldAlert size={31}/></span><h1 id="titulo-acesso-bloqueado">Seu acesso está bloqueado</h1><p>Entre em contato com o responsável pelo sistema para conferir seu acesso. Sua conta e suas demandas permanecem salvas.</p><div><button className="ghost-btn" disabled={atualizando} onClick={() => void atualizarAcesso()}><RefreshCw size={17} className={atualizando ? 'spin' : ''}/>Atualizar acesso</button><button className="primary-btn" disabled={saindo} onClick={() => void sair()}><LogOut size={17}/>{saindo ? 'Saindo...' : 'Sair da conta'}</button></div></section>}
     {!admin && !bloqueado && visao === 'dashboard' && <Dashboard conta={conta} demandas={demandas} carregando={carregando} concluindo={concluindo} concluir={item => void concluir(item)} excluir={setDemandaParaExcluir} nova={nova} navegar={setVisao} erro={erroDemandas} recarregar={() => void carregarDemandas()}/>}
@@ -255,7 +283,7 @@ export default function App() {
     {visao === 'privacidade' && <Privacidade key={conta.usuario.id} conta={conta} excluirConta={() => setExclusaoCadastroAberta(true)}/>}
     {precisaAceite && visao !== 'privacidade' && <PoliticaModal obrigatoria fechar={() => {}} aceita={() => setConta(anterior => anterior ? { ...anterior, usuario: { ...anterior.usuario, politica_aceita: true } } : null)} sair={() => void sair()} gerenciarPrivacidade={() => setVisao('privacidade')}/>}
     {precisaBoasVindas && <BoasVindas conta={conta} cobranca={cobranca} concluir={() => setConta(anterior => anterior ? { ...anterior, usuario: { ...anterior.usuario, boas_vindas_vistas: true } } : null)}/>}
-    {!admin && exclusaoCadastroAberta && <ExcluirContaModal confirmar={excluirMinhaConta} fechar={() => setExclusaoCadastroAberta(false)} gerenciarAssinatura={conta.assinatura.plano && conta.assinatura.renovacao_status !== 'cancelada' ? () => { setExclusaoCadastroAberta(false); setVisao('assinatura'); } : undefined}/>}
+    {!admin && exclusaoCadastroAberta && <ExcluirContaModal confirmar={excluirMinhaConta} fechar={() => setExclusaoCadastroAberta(false)} precisaCancelar={conta.assinatura.cobranca_precisa_encerramento}/>}
     {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && modal && <NovaDemandaModal salvar={salvar} fechar={() => setModal(false)}/>}
     {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !modal && demandaParaExcluir && <ConfirmacaoLixeira titulo="Mover demanda para a lixeira?" textoConfirmar="Mover para a lixeira" confirmar={() => moverParaLixeira(demandaParaExcluir)} fechar={() => setDemandaParaExcluir(null)}><p>A demanda <strong>#{demandaParaExcluir.numero_demanda}</strong>, de <strong>{demandaParaExcluir.beneficiario}</strong>, sairá da sua lista e dos lembretes de prazo.</p><p>Você poderá restaurá-la na lixeira antes de excluir definitivamente.</p></ConfirmacaoLixeira>}
     {!admin && !bloqueado && !precisaAceite && !precisaBoasVindas && !modal && !demandaParaExcluir && quantidadeExcluirTudo !== null && <ConfirmacaoLixeira titulo="Excluir todas as demandas?" textoConfirmar="Excluir tudo" confirmar={moverTodasParaLixeira} fechar={() => setQuantidadeExcluirTudo(null)}><p><strong>{quantidadeExcluirTudo} {quantidadeExcluirTudo === 1 ? 'demanda' : 'demandas'}</strong> da sua conta {quantidadeExcluirTudo === 1 ? 'será movida' : 'serão movidas'} para a lixeira. Isso inclui <strong>todas as demandas concluídas e as que estão fora dos filtros</strong> da lista.</p><p>Você poderá restaurá-las na lixeira. A exclusão definitiva só acontece ao esvaziar a lixeira.</p></ConfirmacaoLixeira>}

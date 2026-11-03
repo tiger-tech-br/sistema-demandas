@@ -86,7 +86,11 @@ O acesso existente é mantido até o vencimento. Uma repetição com a mesma ref
 
 O pedido no aplicativo e a confirmação local não enviam uma ordem de cancelamento ao PagBank. A ação manual no gateway é indispensável. Sair da conta, bloquear acesso, expirar o período, conceder gratuidade ou excluir o cadastro também não interrompe a recorrência. O pedido de cancelamento continua disponível para profissionais autenticados mesmo com acesso bloqueado ou expirado. Cancelamento não exclui dados nem executa estorno.
 
-**Excluir cadastro** é uma operação separada e definitiva: após confirmação no modal, remove do banco ativo a conta profissional e seus dados e encerra o acesso imediatamente. Não cancela nem estorna cobranças externas; o modal informa essa limitação. Referências de pagamentos das contas excluídas ficam reservadas somente por hash, sem vínculo com o titular, e não podem conceder outro período pelo painel ou pela CLI.
+**Excluir cadastro** depende do encerramento da cobrança. Se houver plano sem cancelamento confirmado ou contratação iniciada no aplicativo ainda em conferência, o botão registra os pedidos de exclusão e cancelamento e mantém a conta disponível. O administrador vê **Exclusão pendente**, encerra a recorrência no PagBank ou confere que ela não foi criada e registra a confirmação. Somente então a conta e seus dados são apagados automaticamente, na mesma transação. Sem cobrança pendente, a exclusão ocorre diretamente após o modal. O cliente não precisa confirmar novamente.
+
+Antes de devolver o link de pagamento, o aplicativo registra a contratação iniciada. O marcador é removido ao conferir o pagamento ou o encerramento no PagBank; um cancelamento antigo não autoriza excluir após uma nova contratação. Enquanto houver exclusão pendente, o servidor impede novos checkouts e ativações pelo painel ou CLI. A expiração do acesso local não dispensa o encerramento da cobrança. Contratações iniciadas por links fora do aplicativo podem exigir identificação manual.
+
+A aplicação continua sem enviar uma ordem de cancelamento ou estorno ao PagBank. A confirmação administrativa exige a conferência real do responsável. Ao excluir, referências de pagamentos consumidos ficam reservadas somente por hash, sem vínculo com o titular, e não podem conceder outro período pelo painel ou pela CLI. O cancelamento sem pedido de exclusão mantém o período de acesso e o envio de confirmação já existentes.
 
 ## Nova contratação após cancelamento
 

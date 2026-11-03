@@ -2,8 +2,9 @@ const { createHash } = require("node:crypto");
 const db = require("../config/db");
 const inicializarBanco = require("../config/initDb");
 const { obterAssinatura, obterPlanos } = require("./assinaturaService");
+const { apagarContaNaTransacao } = require("./exclusaoContaService");
 
-const CAMPOS = "id, nome, email, criado_em, papel, bloqueado_em, teste_expira_em, assinatura_plano, assinatura_expira_em, acesso_permanente, cancelamento_solicitado_em, cancelamento_confirmado_em, cancelamento_referencia, CURRENT_TIMESTAMP AS agora";
+const CAMPOS = "id, nome, email, criado_em, papel, bloqueado_em, teste_expira_em, assinatura_plano, assinatura_expira_em, acesso_permanente, exclusao_solicitada_em, contratacao_iniciada_em, contratacao_plano, cancelamento_solicitado_em, cancelamento_confirmado_em, cancelamento_referencia, CURRENT_TIMESTAMP AS agora";
 function erroPublico(status, codigo, mensagem) {
     return Object.assign(new Error(mensagem), { status, codigo });
 }
@@ -68,6 +69,7 @@ async function ativarPlano(administradorId, pessoaId, dados) {
             const { usuario_id, ...ativacao } = anterior;
             return { pessoa: serializarPessoa(usuario), ativacao, repetida: true };
         }
+        if (usuario.exclusao_solicitada_em) throw erroPublico(409, "EXCLUSAO_PENDENTE", "O cadastro está aguardando exclusão. Confirme o encerramento da cobrança antes de finalizar a exclusão.");
         if (usuario.acesso_permanente) throw erroPublico(409, "ACESSO_PERMANENTE", "Esta conta possui acesso gratuito permanente e nao precisa de um plano pago.");
         if (usuario.cancelamento_confirmado_em && dados.nova_assinatura !== true) {
             throw erroPublico(409, "NOVA_ASSINATURA_NECESSARIA", "Confirme que o pagamento pertence a uma nova contratacao apos o cancelamento anterior.");
@@ -80,7 +82,8 @@ async function ativarPlano(administradorId, pessoaId, dados) {
                 + CASE WHEN $2::varchar(10) = 'mensal' THEN INTERVAL '1 month' ELSE INTERVAL '1 year' END,
             cancelamento_solicitado_em = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_solicitado_em END,
             cancelamento_confirmado_em = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_confirmado_em END,
-            cancelamento_referencia = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_referencia END
+            cancelamento_referencia = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_referencia END,
+            contratacao_iniciada_em = NULL, contratacao_plano = NULL
             WHERE id = $1`, [pessoaId, plano.id, dados.nova_assinatura === true]);
         const atualizado = await buscarPessoa(client, pessoaId);
         const ativacao = (await client.query(`INSERT INTO ativacoes_assinatura (usuario_id, referencia, plano, valor_centavos, acesso_ate)
@@ -126,21 +129,34 @@ async function confirmarCancelamento(administradorId, pessoaId, dados, notificac
         await client.query("BEGIN");
         await client.query("SELECT pg_advisory_xact_lock(715120263)");
         const usuario = await buscarPessoa(client, pessoaId, true);
-        if (!usuario.assinatura_plano || !usuario.assinatura_expira_em || usuario.acesso_permanente) {
+        if (!usuario.assinatura_plano && !usuario.contratacao_iniciada_em) {
             throw erroPublico(409, "SEM_ASSINATURA_PAGA", "Esta conta nao possui uma assinatura paga para cancelar.");
         }
-        if (usuario.cancelamento_confirmado_em && usuario.cancelamento_referencia !== referencia) {
+        const encerramentoConfirmado = Boolean(usuario.cancelamento_confirmado_em && !usuario.contratacao_iniciada_em);
+        if (encerramentoConfirmado && usuario.cancelamento_referencia !== referencia) {
             throw erroPublico(409, "CANCELAMENTO_JA_CONFIRMADO", "O cancelamento ja foi confirmado com outra referencia.");
         }
-        if (!usuario.cancelamento_confirmado_em) {
+        if (!encerramentoConfirmado) {
             await client.query(`UPDATE usuarios SET
                 cancelamento_solicitado_em = COALESCE(cancelamento_solicitado_em, clock_timestamp()),
-                cancelamento_confirmado_em = clock_timestamp(), cancelamento_referencia = $2
+                cancelamento_confirmado_em = clock_timestamp(), cancelamento_referencia = $2,
+                contratacao_iniciada_em = NULL, contratacao_plano = NULL
                 WHERE id = $1`, [pessoaId, referencia]);
             await client.query(`INSERT INTO acoes_administrativas (administrador_id, usuario_id, acao, detalhes)
                 VALUES ($1, $2, 'cancelamento_confirmado', $3::jsonb)`, [administradorId, pessoaId, JSON.stringify({ referencia })]);
         }
         const atualizado = await buscarPessoa(client, pessoaId);
+        if (atualizado.exclusao_solicitada_em) {
+            await apagarContaNaTransacao(client, atualizado);
+            await client.query("COMMIT");
+            return { excluida: true, pessoa: null, pessoa_id: pessoaId, email_confirmacao: null,
+                mensagem: "Cancelamento confirmado e cadastro excluído definitivamente." };
+        }
+        if (!atualizado.assinatura_plano || !atualizado.assinatura_expira_em) {
+            await client.query("COMMIT");
+            return { pessoa: serializarPessoa(atualizado), email_confirmacao: null,
+                mensagem: "O encerramento da contratação no PagBank foi confirmado." };
+        }
         const notificacaoId = await notificacoes.enfileirarConfirmacaoCancelamento(client, atualizado);
         const email = (await client.query("SELECT status FROM notificacoes_email WHERE id = $1", [notificacaoId])).rows[0];
         await client.query("COMMIT");

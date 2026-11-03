@@ -9,6 +9,10 @@ export type Assinatura = {
   renovacao_status: 'sem_assinatura' | 'ativa' | 'cancelamento_solicitado' | 'cancelada';
   cancelamento_solicitado_em: string | null;
   cancelamento_confirmado_em: string | null;
+  exclusao_solicitada_em: string | null;
+  contratacao_pendente: boolean;
+  contratacao_plano: 'mensal' | 'anual' | null;
+  cobranca_precisa_encerramento: boolean;
 };
 export type Conta = { usuario: Usuario; assinatura: Assinatura; token?: string };
 export type Plano = { id: 'mensal' | 'anual'; nome: string; valor_centavos: number; periodicidade: 'mes' | 'ano' };

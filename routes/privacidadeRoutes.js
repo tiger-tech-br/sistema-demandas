@@ -22,7 +22,10 @@ const tratar = operacao => async (req, res, next) => {
 };
 router.post("/aceite", tratar(async (req, res) => res.json(await privacidade.aceitarTermos(req.usuario.id, req.body?.versao))));
 router.get("/dados", tratar(async (req, res) => res.json(await privacidade.exportarDados(req.usuario.id))));
-router.delete("/conta", tratar(async (req, res) => res.json(await privacidade.excluirConta(req.usuario.id, req.body?.confirmar))));
+router.delete("/conta", tratar(async (req, res) => {
+    const resultado = await privacidade.excluirConta(req.usuario.id, req.body?.confirmar);
+    return res.status(resultado.exclusao_pendente ? 202 : 200).json(resultado);
+}));
 router.get("/solicitacoes", tratar(async (req, res) => res.json(await privacidade.listarSolicitacoes(req.usuario.id))));
 router.post("/solicitacoes", tratar(async (req, res) => res.status(201).json(await privacidade.criarSolicitacao(req.usuario.id, req.body))));
 router.use((req, res) => res.status(404).json({ mensagem: "Recurso de privacidade não encontrado." }));

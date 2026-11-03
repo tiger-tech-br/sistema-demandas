@@ -1,6 +1,7 @@
 if (require.main === module) require("../config/env");
 const db = require("../config/db");
 const inicializarBanco = require("../config/initDb");
+const { cobrancaPrecisaEncerramento } = require("../services/assinaturaService");
 
 function argumentos(valores) {
     const opcoes = {};
@@ -23,11 +24,13 @@ async function concederAcessoPermanente(opcoes) {
     const client = await db.connect();
     try {
         await client.query("BEGIN");
+        await client.query("SELECT pg_advisory_xact_lock(715120263)");
         const administrador = (await client.query("SELECT id FROM usuarios WHERE email = $1 AND papel = 'admin' AND bloqueado_em IS NULL FOR UPDATE", [validado.administrador])).rows[0];
         if (!administrador) throw new Error("Administrador ativo nao encontrado.");
-        const usuario = (await client.query("SELECT id, papel, acesso_permanente, assinatura_plano, cancelamento_confirmado_em FROM usuarios WHERE email = $1 FOR UPDATE", [validado.email])).rows[0];
+        const usuario = (await client.query("SELECT id, papel, acesso_permanente, assinatura_plano, cancelamento_confirmado_em, contratacao_iniciada_em, exclusao_solicitada_em FROM usuarios WHERE email = $1 FOR UPDATE", [validado.email])).rows[0];
         if (!usuario || usuario.papel !== "profissional") throw new Error("Conta profissional existente nao encontrada.");
-        if (usuario.assinatura_plano && !usuario.cancelamento_confirmado_em) throw new Error("Cancele e confirme a assinatura paga anterior antes de conceder gratuidade, para evitar cobrancas indevidas.");
+        if (usuario.exclusao_solicitada_em) throw new Error("O cadastro está aguardando exclusão. Confirme o encerramento da cobrança antes de concluir a exclusão.");
+        if (cobrancaPrecisaEncerramento(usuario)) throw new Error("Cancele e confirme a assinatura ou contratação anterior antes de conceder gratuidade, para evitar cobranças indevidas.");
         if (!usuario.acesso_permanente) {
             await client.query("UPDATE usuarios SET acesso_permanente = true WHERE id = $1", [usuario.id]);
             await client.query(`INSERT INTO acoes_administrativas (administrador_id, usuario_id, acao)

@@ -34,9 +34,10 @@ async function ativarAssinatura(opcoes) {
         if (excluida.rowCount) {
             throw new Error("Esta referencia de pagamento ja foi utilizada. A assinatura nao foi prorrogada novamente.");
         }
-        const usuario = (await client.query("SELECT id, papel, acesso_permanente, cancelamento_confirmado_em FROM usuarios WHERE email = $1 FOR UPDATE", [validado.email])).rows[0];
+        const usuario = (await client.query("SELECT id, papel, acesso_permanente, exclusao_solicitada_em, cancelamento_confirmado_em FROM usuarios WHERE email = $1 FOR UPDATE", [validado.email])).rows[0];
         if (!usuario) throw new Error("Conta nao encontrada. Cadastre a conta de destino primeiro.");
         if (usuario.papel !== "profissional") throw new Error("A conta de administrador nao utiliza assinatura de demandas.");
+        if (usuario.exclusao_solicitada_em) throw new Error("O cadastro está aguardando exclusão. Não registre uma nova ativação antes de confirmar o encerramento da cobrança.");
         if (usuario.acesso_permanente) throw new Error("Esta conta possui acesso gratuito permanente.");
         if (usuario.cancelamento_confirmado_em && !validado.novaAssinatura) throw new Error("Confirme a nova contratacao apos o cancelamento com --nova-assinatura.");
         if (!usuario.cancelamento_confirmado_em && validado.novaAssinatura) throw new Error("Confirme primeiro o cancelamento da assinatura anterior.");
@@ -47,7 +48,8 @@ async function ativarAssinatura(opcoes) {
                     + CASE WHEN $2::varchar(10) = 'mensal' THEN INTERVAL '1 month' ELSE INTERVAL '1 year' END,
                 cancelamento_solicitado_em = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_solicitado_em END,
                 cancelamento_confirmado_em = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_confirmado_em END,
-                cancelamento_referencia = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_referencia END
+                cancelamento_referencia = CASE WHEN $3::boolean THEN NULL ELSE cancelamento_referencia END,
+                contratacao_iniciada_em = NULL, contratacao_plano = NULL
             WHERE id = $1
             RETURNING assinatura_expira_em
         `, [usuario.id, plano.id, Boolean(validado.novaAssinatura)]);

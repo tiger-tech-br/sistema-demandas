@@ -8,14 +8,29 @@ function obterPlanos() {
     return { teste_dias: TESTE_DIAS, planos: PLANOS };
 }
 
+function cobrancaPrecisaEncerramento(usuario) {
+    return Boolean(usuario.contratacao_iniciada_em ||
+        (usuario.assinatura_plano && !usuario.cancelamento_confirmado_em));
+}
+
 function obterAssinatura(usuario, agora = new Date()) {
     const instante = new Date(agora).getTime();
     const teste = new Date(usuario.teste_expira_em);
     const paga = usuario.assinatura_expira_em ? new Date(usuario.assinatura_expira_em) : null;
     const plano = PLANOS.some((item) => item.id === usuario.assinatura_plano) ? usuario.assinatura_plano : null;
-    const renovacao_status = !plano ? "sem_assinatura" : usuario.cancelamento_confirmado_em ? "cancelada" : usuario.cancelamento_solicitado_em ? "cancelamento_solicitado" : "ativa";
+    const contratacaoPendente = Boolean(usuario.contratacao_iniciada_em);
+    const precisaEncerramento = cobrancaPrecisaEncerramento(usuario);
+    const cancelamentoSolicitado = Boolean(usuario.cancelamento_solicitado_em &&
+        (!contratacaoPendente || new Date(usuario.cancelamento_solicitado_em) >= new Date(usuario.contratacao_iniciada_em)));
+    const renovacao_status = precisaEncerramento
+        ? cancelamentoSolicitado ? "cancelamento_solicitado" : plano && !usuario.cancelamento_confirmado_em ? "ativa" : "sem_assinatura"
+        : plano ? "cancelada" : "sem_assinatura";
     const renovacao = {
         renovacao_status,
+        exclusao_solicitada_em: usuario.exclusao_solicitada_em ? new Date(usuario.exclusao_solicitada_em).toISOString() : null,
+        contratacao_pendente: contratacaoPendente,
+        contratacao_plano: contratacaoPendente && PLANOS.some(item => item.id === usuario.contratacao_plano) ? usuario.contratacao_plano : null,
+        cobranca_precisa_encerramento: precisaEncerramento,
         cancelamento_solicitado_em: usuario.cancelamento_solicitado_em ? new Date(usuario.cancelamento_solicitado_em).toISOString() : null,
         cancelamento_confirmado_em: usuario.cancelamento_confirmado_em ? new Date(usuario.cancelamento_confirmado_em).toISOString() : null
     };
@@ -34,4 +49,4 @@ function obterAssinatura(usuario, agora = new Date()) {
     };
 }
 
-module.exports = { obterPlanos, obterAssinatura };
+module.exports = { obterPlanos, obterAssinatura, cobrancaPrecisaEncerramento };

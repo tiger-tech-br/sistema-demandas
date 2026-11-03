@@ -51,6 +51,9 @@ async function executarMigracao() {
             ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cancelamento_solicitado_em TIMESTAMPTZ;
             ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cancelamento_confirmado_em TIMESTAMPTZ;
             ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cancelamento_referencia VARCHAR(120);
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS exclusao_solicitada_em TIMESTAMPTZ;
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS contratacao_iniciada_em TIMESTAMPTZ;
+            ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS contratacao_plano VARCHAR(10);
             CREATE TABLE IF NOT EXISTS acoes_administrativas (
                 id SERIAL PRIMARY KEY,
                 administrador_id INTEGER NOT NULL REFERENCES usuarios(id),

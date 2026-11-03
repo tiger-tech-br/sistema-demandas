@@ -18,7 +18,7 @@
 .admin-person-cell .beneficiary-avatar { width: 39px; height: 39px; font-size: 16px; background: #eaf5f9; color: #639ab0; }
 .admin-person-cell strong { display: block; color: $ink; font-size: 14px; font-weight: 650; line-height: 1.45; overflow-wrap: anywhere; }
 .admin-person-cell small { display: block; color: #8a9ab2; font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
-.admin-plan-label { font-size: 12px; white-space: nowrap; }
+.admin-plan-label { font-size: 12px; overflow-wrap: anywhere; }
 .admin-time-note { display: block; color: #93a3b8; font-size: 11px; margin-top: 5px; white-space: nowrap; }
 .admin-row-action { text-align: right; }
 .admin-row-action > button { min-height: 34px; padding: 7px 10px; font-size: 12px; gap: 5px; white-space: nowrap; }
@@ -35,6 +35,9 @@
 .admin-person-dialog .notice .text-link { margin-top: 6px; }
 .admin-success { border: 1px solid #cae9df; background: #effaf5; color: #308469; }
 .admin-success > svg { margin-top: 2px; }
+.admin-deletion-notice { display: flex; align-items: flex-start; gap: 10px; background: #fff8ee; border-color: #eedabe; color: #9a713b; }
+.admin-deletion-notice > svg { flex-shrink: 0; margin-top: 2px; }
+.admin-deletion-notice > .text-link { flex-shrink: 0; margin-left: auto; }
 .admin-detail-summary { display: grid; grid-template-columns: .9fr .9fr 1.3fr .9fr; padding: 17px; gap: 17px; border: 1px solid #e0edf2; background: #f7fbfd; border-radius: 9px; margin-bottom: 25px; }
 .admin-detail-summary > div > span { display: block; font-size: 11px; color: #91a0b8; margin-bottom: 9px; }
 .admin-detail-summary > div > strong { font-size: 12px; color: #4b627f; font-weight: 600; }
@@ -94,6 +97,8 @@
   .admin-people-table th, .admin-people-table td { padding-left: 13px; padding-right: 13px; }
 }
 @media (max-width: 780px) {
+  .admin-deletion-notice { flex-wrap: wrap; }
+  .admin-deletion-notice > .text-link { margin-left: 29px; }
   .admin-page .page-header > .ghost-btn { max-width: 111px; }
   .admin-filters { grid-template-columns: 1fr 1fr; gap: 14px 11px; padding-bottom: 21px; }
   .admin-filters > label:first-child { grid-column: 1/-1; }

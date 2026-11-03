@@ -63,6 +63,8 @@ test("contratacao permite o teste e impede duplicar cobranca recorrente ativa", 
         { status: "ativa", plano: "mensal", renovacao_status: "ativa" },
         { status: "expirada", plano: "anual", renovacao_status: "ativa" },
         { status: "expirada", plano: "mensal", renovacao_status: "cancelamento_solicitado" },
+        { status: "teste", plano: null, exclusao_solicitada_em: "2026-11-03T12:00:00.000Z" },
+        { status: "ativa", plano: "mensal", renovacao_status: "cancelada", exclusao_solicitada_em: "2026-11-03T12:00:00.000Z" },
         { status: "gratuita", plano: null, acesso_permanente: true }
     ]) {
         const cobranca = obterStatusCobranca(assinatura, ambiente);

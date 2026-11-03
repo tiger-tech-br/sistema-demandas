@@ -47,8 +47,10 @@ function planoValido(plano) {
 function podeContratar(assinatura) {
     // O vencimento local nao significa que o mandato recorrente no PagBank acabou.
     // Exigir o cancelamento confirmado evita duas cobrancas recorrentes paralelas.
-    return Boolean(assinatura) && !assinatura.acesso_permanente &&
-        (!assinatura.plano || assinatura.renovacao_status === "cancelada");
+    return Boolean(assinatura && !assinatura.acesso_permanente && !assinatura.exclusao_solicitada_em &&
+        assinatura.renovacao_status !== "cancelamento_solicitado" &&
+        (!assinatura.plano || assinatura.renovacao_status === "cancelada" ||
+            (assinatura.contratacao_pendente && assinatura.cancelamento_confirmado_em)));
 }
 
 function obterStatusCobranca(assinatura, ambiente = process.env) {
